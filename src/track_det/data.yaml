@@ -1,0 +1,7 @@
+path: ../data/dataset
+train: images/train
+val: images/val
+test: images/test
+
+nc: 2
+names: ['mobile_phone', 'paper_chit']

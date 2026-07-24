@@ -1,0 +1,21 @@
+{
+  "python.defaultInterpreterPath": "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+  "python.analysis.extraPaths": [
+    "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages",
+    "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64\\DLLs",
+    "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64"
+  ],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.useLibraryCodeForTypes": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.ignore": ["**/data/**", "**/outputs/**"],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none",
+    "reportMissingImports": "none",
+    "reportMissingTypeStubs": "none"
+  },
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.tabSize": 4
+  }
+}

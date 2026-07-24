@@ -1,0 +1,30 @@
+# Offline Exam-Hall Video Analytics Configuration
+
+paths:
+  input_video: "data/demo_clips/raw/sample_exam.mp4"
+  output_dir: "outputs"
+  dataset_cdnet: "data/cdnet2014"
+
+motion:
+  mog2_history: 500
+  var_threshold: 16
+  detect_shadows: false
+  min_contour_area: 500
+
+tracking:
+  tracker_type: "bytetrack"  # or 'centroid'
+  track_thresh: 0.5
+  match_thresh: 0.8
+
+risk:
+  invigilator_filter: true
+  exam_phase_logic: true
+  audio_fusion: true
+  risk_threshold: 0.65
+
+outputs:
+  save_overlay_video: true
+  save_heatmap: true
+  save_timeline: true
+  save_csv_log: true
+  save_pdf_report: true

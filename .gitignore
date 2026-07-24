@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data & Large Files
+data/cdnet2014/*
+!data/cdnet2014/.gitkeep
+data/demo_clips/raw/*
+!data/demo_clips/raw/.gitkeep
+
+# Outputs
+outputs/*
+!outputs/.gitkeep
+
+# Virtual Envs
+.venv/
+env/
+venv/

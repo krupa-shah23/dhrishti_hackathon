@@ -1,0 +1,28 @@
+{
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Windows",
+  "venvPath": ".",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "pythonVersion": "3.14",
+      "pythonPlatform": "Windows",
+      "extraPaths": [
+        "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages",
+        "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64\\DLLs",
+        "C:\\Users\\prisha\\AppData\\Local\\Python\\pythoncore-3.14-64"
+      ]
+    }
+  ],
+  "reportMissingModuleSource": "none",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "autoImportCompletions": true,
+  "include": ["src", "main.py", "generate_test_video.py"],
+  "exclude": ["data", "outputs", "notebooks"]
+}

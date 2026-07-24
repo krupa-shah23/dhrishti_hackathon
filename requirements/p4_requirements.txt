@@ -1,0 +1,12 @@
+# P4 — Outputs, Eval & Integration (heatmap, timeline, CSV log, report, metrics, benchmarks, final merge/demo)
+# Python 3.10+
+numpy>=1.26
+pandas>=2.1
+matplotlib>=3.8
+seaborn>=0.13
+opencv-python>=4.9
+scikit-learn>=1.4
+fpdf2>=2.7
+streamlit>=1.32
+tqdm>=4.66
+PyYAML>=6.0

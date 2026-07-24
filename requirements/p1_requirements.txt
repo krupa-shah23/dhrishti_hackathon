@@ -1,0 +1,6 @@
+# P1 — Motion & ROI (MOG2, optical flow, contours, morphology, ROI boxes)
+# Python 3.10+
+numpy>=1.26,<2.0
+opencv-python>=4.9
+opencv-contrib-python>=4.9
+matplotlib>=3.8
