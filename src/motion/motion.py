@@ -9,6 +9,8 @@ Shared contract (do not change signature without team sign-off):
 import cv2
 import numpy as np
 
+from shake_compensation import FrameStabilizer
+
 
 class MotionEstimator:
     """
@@ -16,7 +18,8 @@ class MotionEstimator:
     (the subtractor needs to see frames in sequence to build its model).
     """
 
-    def __init__(self, history=500, var_threshold=25, detect_shadows=True, learning_rate=0.0008):
+    def __init__(self, history=500, var_threshold=25, detect_shadows=True,
+                 learning_rate=0.0008, use_stabilization=False):
         self.mog2 = cv2.createBackgroundSubtractorMOG2(
             history=history,
             varThreshold=var_threshold,
@@ -24,11 +27,34 @@ class MotionEstimator:
         )
         self.learning_rate = learning_rate  # explicit, slower than MOG2's default 1/history ≈ 0.002, so near-stationary subjects survive longer before being absorbed into the background model
 
+        self.use_stabilization = use_stabilization
+        self.stabilizer = FrameStabilizer() if use_stabilization else None
+        self.last_shift = (0.0, 0.0)  # last estimated (dx, dy), for logging/comparison
+
+        # Invigilator / ignore-region hook: another module can populate this
+        # with [(x1, y1, x2, y2), ...] boxes; motion in these regions is
+        # zeroed out of the mask before it ever reaches get_rois(). This
+        # module never detects the invigilator itself — it only provides
+        # the hook. Distinct from roi.py's exclusion_regions, which are
+        # static permanent-background rectangles validated per clip; this
+        # is for a dynamic region another module updates at runtime.
+        self.ignore_regions = []
+
+    def set_ignore_regions(self, regions):
+        """
+        regions: [(x1, y1, x2, y2), ...] in frame pixel coordinates.
+        """
+        self.ignore_regions = regions
+
     def get_motion_mask(self, frame):
         """
         frame: BGR np.ndarray (single video frame)
-        returns: binary mask (np.uint8, 0/255), shadows already excluded
+        returns: binary mask (np.uint8, 0/255), shadows excluded,
+                 ignore_regions zeroed out, camera-shake compensated if enabled
         """
+        if self.use_stabilization:
+            frame, self.last_shift = self.stabilizer.stabilize(frame)
+
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         raw_mask = self.mog2.apply(blurred, learningRate=self.learning_rate)
 
@@ -36,7 +62,15 @@ class MotionEstimator:
         # We only want true foreground (255), so threshold shadows out.
         _, binary_mask = cv2.threshold(raw_mask, 200, 255, cv2.THRESH_BINARY)
 
+        for (x1, y1, x2, y2) in self.ignore_regions:
+            binary_mask[y1:y2, x1:x2] = 0
+
         return binary_mask
+
+    def reset(self):
+        """Call when starting a new clip so stabilizer state doesn't leak across clips."""
+        if self.stabilizer is not None:
+            self.stabilizer.reset()
 
 
 def motion_intensity(mask):
@@ -47,7 +81,8 @@ def motion_intensity(mask):
     return float(np.count_nonzero(mask)) / mask.size
 
 
-def process_clip(folder_path, history=500, var_threshold=16):
+def process_clip(folder_path, history=500, var_threshold=25,
+                  learning_rate=0.0008, use_stabilization=False):
     """
     Runs MOG2 over a CDNet-style image-sequence clip (folder of numbered frames,
     e.g. input/in000001.jpg ...), since CDNet provides sequences, not video files.
@@ -56,13 +91,15 @@ def process_clip(folder_path, history=500, var_threshold=16):
     import os
 
     files = sorted(
-        f for f in os.listdir(folder_path)
+        f for f in os.listdir(folder_path) 
         if f.lower().endswith((".jpg", ".png", ".bmp"))
     )
     if not files:
         raise FileNotFoundError(f"No frame images found in: {folder_path}")
 
-    estimator = MotionEstimator(history=history, var_threshold=var_threshold)
+    estimator = MotionEstimator(history=history, var_threshold=var_threshold,
+                                 learning_rate=learning_rate,
+                                 use_stabilization=use_stabilization)
     masks = []
     intensities = []
 
