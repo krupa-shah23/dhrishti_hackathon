@@ -1,0 +1,6 @@
+config,f1
+"Baseline (no audio, no invigilator, no phase)",1.0
++ audio-fusion,1.0
++ invigilator-filter,1.0
++ exam-phase-logic,1.0
+All combined,1.0

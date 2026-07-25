@@ -7,7 +7,6 @@ def auto_label(path="../../data/labels.csv"):
     rows = []
     for t in tracks:
         f = extract_features(t)
-        # heuristic: suspicious if fast + object detected + high frequency
         score = f["speed"] * 0.3 + f["frequency"] * 50 + f["object_flag"] * 200
         label = "Suspicious" if score > 250 else "Normal"
         rows.append({

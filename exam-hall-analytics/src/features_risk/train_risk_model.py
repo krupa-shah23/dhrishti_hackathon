@@ -16,7 +16,6 @@ def build_training_data(labels_path="../../data/labels.csv"):
     labels_df = pd.read_csv(labels_path)
     labels_df = labels_df[labels_df["label"].isin(["Normal", "Suspicious"])]
 
-    # regenerate same mock tracks (deterministic seed for reproducibility)
     tracks = generate_mock_tracks(len(labels_df) if len(labels_df) > 0 else 80)
     track_map = {t["event_id"]: t for t in tracks}
 
@@ -42,7 +41,7 @@ def train():
 
     model = XGBClassifier(
         n_estimators=200, max_depth=4, learning_rate=0.05,
-        eval_metric="logloss", use_label_encoder=False
+        eval_metric="logloss"
     )
     model.fit(X_train, y_train)
 
@@ -76,7 +75,6 @@ def load_model():
 
 
 def risk_score(features: dict) -> float:
-    """Returns probability (0-1) that event is Suspicious."""
     model = load_model()
     X = np.array([list(features.values())])
     proba = model.predict_proba(X)[0][1]
