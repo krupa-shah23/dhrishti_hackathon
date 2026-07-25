@@ -18,7 +18,7 @@ src.track_det package (which -m from repo root gives you).
 """
 from typing import List, Tuple, Dict, Any
 
-from .centroid_tracker import CentroidTracker
+from .centroid_tracker_v2 import CentroidTracker
 
 try:
     from .bytetrack_wrapper import ByteTrackWrapper, _HAS_BYTETRACK
