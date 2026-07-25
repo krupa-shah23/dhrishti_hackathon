@@ -1,3 +1,4 @@
+# UNUSED — EXPERIMENTAL, DO NOT IMPORT. See docstring below for why.
 """
 Centroid-distance tracker — fallback for ByteTrack.
 No extra dependencies. Matches boxes frame-to-frame by nearest centroid.
