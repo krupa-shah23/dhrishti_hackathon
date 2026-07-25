@@ -37,3 +37,5 @@ data/raw/
 # OS
 .DS_Store
 Thumbs.db
+
+data/real_footage/

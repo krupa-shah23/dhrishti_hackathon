@@ -32,19 +32,31 @@ else:
     print("[tracker] ByteTrack not available — using CentroidTracker fallback.")
     _tracker = CentroidTracker()
 
-def reset_tracker() -> None:
+def reset_tracker(max_distance: float = None, max_age: int = None) -> None:
     """
     Resets the active tracker's internal state (all tracks dropped, ID
     counter restarted). Call this whenever you start processing a NEW
-    video/clip in the same Python process — without it, track IDs and
-    not-yet-aged-out tracks from the previous clip leak into the new
-    one's results.
+    video/clip in the same Python process.
+
+    Optionally pass max_distance/max_age to reconstruct the tracker with
+    new tuning parameters (e.g. per-clip resolution-scaled max_distance).
+    If omitted, keeps the tracker's current settings and just clears state.
 
     Does NOT need to be called between frames of the SAME video — only
     between separate videos, or between isolated test cases.
     """
     global _tracker
-    _tracker.reset()
+    if max_distance is not None or max_age is not None:
+        if isinstance(_tracker, CentroidTracker):
+            new_max_distance = max_distance if max_distance is not None else _tracker.max_distance
+            new_max_age = max_age if max_age is not None else _tracker.max_age
+            _tracker = CentroidTracker(max_distance=new_max_distance, max_age=new_max_age)
+        else:
+            print("[tracker] WARNING: max_distance/max_age override requested but "
+                  "active tracker is not CentroidTracker — ignoring override.")
+            _tracker.reset()
+    else:
+        _tracker.reset()
 
 
 def track(boxes: List[Tuple[float, float, float, float]]) -> List[Dict[str, Any]]:

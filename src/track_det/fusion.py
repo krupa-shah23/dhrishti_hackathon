@@ -9,11 +9,22 @@ confidence) to each track, so downstream (P3's extract_features) can ask
 "was a phone detected on track X at time T" instead of getting two
 disconnected lists.
 
-Not part of the original 6 shared function contracts — this is a P2-side
+UPDATED: matching changed from per-detection greedy (each detection picks
+its own best-containment track, resolved by highest confidence if two
+detections compete for the same track) to Hungarian assignment
+(scipy.optimize.linear_sum_assignment) -- same technique used to fix
+centroid_tracker.py's matching. This finds the globally optimal one-to-one
+track<->detection pairing by containment cost, rather than resolving
+competing claims greedily/sequentially.
+
+Not part of the original 6 shared function contracts -- this is a P2-side
 helper called once per frame, after both track() and detect_objects()
 have been called for that frame.
 """
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any
+
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 
 def _intersection_area(box_a: Tuple[float, float, float, float],
@@ -57,42 +68,44 @@ def fuse_track_detections(
                  [((x1,y1,x2,y2), class_name, conf), ...]
     containment_thresh: minimum fraction of the detection box that must
                  fall inside a track's box to count as belonging to it.
-                 0.5 = at least half the phone box is within the track's
-                 motion region.
 
-    Returns tracks with two extra keys merged in:
-        "class": str or None
-        "confidence": float or None
-    If multiple detections overlap the same track above threshold, keeps
-    the highest-confidence one. If one detection overlaps multiple tracks
-    (e.g. a phone box spanning two adjacent people), it's assigned to
-    the track with the highest IoU only — not double-counted.
+    Returns tracks with two extra keys merged in: "class", "confidence"
+    (both None if no detection matched). Uses Hungarian assignment to
+    find the globally optimal one-to-one track<->detection pairing by
+    containment cost, so a track is never assigned a worse-matching
+    detection just because a better-matching detection was processed
+    later, and a detection is never "stolen" from its best track by a
+    tie-break ordering artifact.
     """
     fused = [
         {"track_id": t["track_id"], "box": t["box"], "class": None, "confidence": None}
         for t in tracks
     ]
 
-    # best (iou, det_conf) seen so far per track index, so a later
-    # lower-confidence detection can't overwrite an earlier better match
-    best_score: Dict[int, Tuple[float, float]] = {}
+    if not tracks or not detections:
+        return fused
 
-    for det_box, cls_name, conf in detections:
-        best_track_idx: Optional[int] = None
-        best_containment = 0.0
-        for i, t in enumerate(fused):
+    n_tracks = len(tracks)
+    n_dets = len(detections)
+
+    # Cost = 1 - containment (Hungarian minimizes cost, we want to
+    # maximize containment). Pairs below threshold get an infeasible
+    # cost so linear_sum_assignment naturally avoids them.
+    INFEASIBLE_COST = 1e9
+    cost_matrix = np.full((n_tracks, n_dets), INFEASIBLE_COST)
+
+    for i, t in enumerate(tracks):
+        for j, (det_box, cls_name, conf) in enumerate(detections):
             containment = _containment(det_box, t["box"])
-            if containment >= containment_thresh and containment > best_containment:
-                best_containment = containment
-                best_track_idx = i
+            if containment >= containment_thresh:
+                cost_matrix[i, j] = 1.0 - containment
 
-        if best_track_idx is None:
-            continue  # detection doesn't fall inside any current track well enough
+    row_indices, col_indices = linear_sum_assignment(cost_matrix)
 
-        prev = best_score.get(best_track_idx)
-        if prev is None or conf > prev[1]:
-            best_score[best_track_idx] = (best_containment, conf)
-            fused[best_track_idx]["class"] = cls_name
-            fused[best_track_idx]["confidence"] = conf
+    for row, col in zip(row_indices, col_indices):
+        if cost_matrix[row, col] < INFEASIBLE_COST:
+            det_box, cls_name, conf = detections[col]
+            fused[row]["class"] = cls_name
+            fused[row]["confidence"] = conf
 
     return fused

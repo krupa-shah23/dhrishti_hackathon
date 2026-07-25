@@ -12,13 +12,6 @@ try:
 except ImportError:
     _HAS_ULTRALYTICS = False
 
-# Path to your fine-tuned weights (Day 1 output).
-# Resolved relative to THIS FILE's location, not the current working
-# directory — this file lives at <repo_root>/src/track_det/detector.py,
-# so we go up 3 levels to reach <repo_root>, then into models/.
-# (A plain Path("models/phone_detector_v1.pt") broke depending on
-# whether you launched from repo root or from inside src/track_det/ —
-# this version works regardless of cwd.)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_WEIGHTS = REPO_ROOT / "models" / "phone_detector_v1.pt"
 
@@ -34,10 +27,6 @@ else:
 def detect_objects(frame) -> List[Tuple[Tuple[float, float, float, float], str, float]]:
     """
     Contract: detect_objects(frame) -> [boxes, class, conf]
-
-    frame: a single video frame (numpy array, BGR — as read by cv2).
-    returns: list of (box, class_name, confidence) tuples, e.g.:
-             [((x1, y1, x2, y2), "phone", 0.93), ...]
     """
     if _detector is None:
         return []
