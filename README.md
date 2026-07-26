@@ -66,6 +66,7 @@ Box format is locked as `(x1, y1, x2, y2)` across all modules and CSV outputs �
 ## Datasets
 
 - **CDNet2014** — shadow, dynamicBackground, lowFramerate, and cameraJitter categories (9 clips)
+- **ShanghaiTech** — 2 clips used for additional pipeline stress-testing
 - **MSU OEP** — real exam-proctoring webcam video (`.avi`, 25fps, 640×480, 24 subjects). Only webcam files are used (wearcam is head-mounted, incompatible with static-camera MOG2). Requires `OEP_MIN_AREA=1500` (vs. CDNet defaults) due to close-up-framing texture noise.
 
 ---
@@ -75,15 +76,6 @@ Box format is locked as `(x1, y1, x2, y2)` across all modules and CSV outputs �
 - `test_roi.py` — before/after comparisons for exclusion masks and stabilization, plus a standard run across all clips
 - `eval_ground_truth.py` — pixel- and IoU-matched box-level Precision/Recall/F1 against ground truth (uses `baseline_benchmark.py`'s box-matching, not raw rasterization)
 - `baseline_benchmark.py` — quantifies the incremental value of morphology/contour ROI logic over frame-diff-only and MOG2-only baselines
-
----
-
-## Known Limitations
-
-- **Camera-shake compensation degrades accuracy on severe jitter.** Validated against ground truth: improves F1 on mild jitter (<1px avg translation, e.g. boulevard/sidewalk: +1–4%), but reduces F1 on severe jitter (>6px avg translation, e.g. badminton/traffic: -1–5%). Root cause not fully confirmed — likely per-frame (non-trajectory-smoothed) phase correlation becoming unreliable at larger shifts, possibly compounded by moving foreground biasing the correlation peak. **Do not enable stabilization on high-shake footage without re-validating against ground truth first.**
-- **OEP validation coverage is partial.** Only subject1 and subject10 (of 24) have been checked for fragmentation and full-frame-blob artifacts. Any additional subject should be re-validated with `spot_check_min_area.py` / `scan_fullframe_blobs.py` before trusting its output.
-- **OEP `gt.txt` label semantics:** subject1's ground-truth file reportedly contains a label ID (`6`) not covered by the paper's documented 5-category scheme. Unconfirmed whether this is a real category, a labeling artifact, or a parsing issue — affects ground-truth evaluation for that subject only.
-- If adding OEP clips to `baseline_benchmark.py`, `min_area=OEP_MIN_AREA` must be passed explicitly — its current defaults are CDNet-tuned and will reproduce OEP's fragmentation issue silently otherwise.
 
 ---
 
