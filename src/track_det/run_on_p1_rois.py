@@ -34,9 +34,8 @@ from collections import defaultdict
 
 from .tracker import track, reset_tracker
 
-MAX_AGE_REFERENCE = 10  # must match CentroidTracker's default max_age;
-                         # update this constant if that default changes,
-                         # so gap-flagging below stays meaningful
+DEFAULT_MAX_AGE = 25  # CentroidTracker's built-in default, used only when
+                        # no --max-age override is passed
 
 
 def load_rois_by_frame(csv_path):
@@ -61,14 +60,26 @@ def load_rois_by_frame(csv_path):
     return dict(frames)
 
 
-def main(csv_path, quiet=False):
+def main(csv_path, quiet=False, max_distance=None, max_age=None):
     frames = load_rois_by_frame(csv_path)
     if not frames:
         print(f"No rows loaded from {csv_path}.")
         return
 
+    # Effective max_age actually in effect this run -- the override if one
+    # was passed, otherwise the tracker's real default. Gap-flagging below
+    # must be evaluated against THIS value, not a hardcoded constant, or
+    # the reported gap list silently stops matching the real tracking
+    # behavior whenever --max-age is overridden.
+    effective_max_age = max_age if max_age is not None else DEFAULT_MAX_AGE
+
     max_frame = max(frames.keys())
-    reset_tracker()
+    reset_tracker(max_distance=max_distance, max_age=max_age)
+    print(
+        f"[run_on_p1_rois] Effective tuning: "
+        f"max_distance={max_distance if max_distance is not None else DEFAULT_MAX_DISTANCE}, "
+        f"max_age={effective_max_age}"
+    )
 
     max_track_id_seen = 0
     gap_events = []
@@ -85,7 +96,7 @@ def main(csv_path, quiet=False):
         if boxes:
             if current_gap_start is not None:
                 gap_len = frame_idx - current_gap_start
-                if gap_len > MAX_AGE_REFERENCE:
+                if gap_len > effective_max_age:
                     gap_events.append((current_gap_start, frame_idx, gap_len))
                 current_gap_start = None
         elif current_gap_start is None:
@@ -102,7 +113,7 @@ def main(csv_path, quiet=False):
     print(f"\n--- Summary ---")
     print(f"Total real frames simulated: {max_frame + 1}")
     print(f"Highest track_id ever assigned: {max_track_id_seen}")
-    print(f"Gaps longer than max_age={MAX_AGE_REFERENCE} real frames "
+    print(f"Gaps longer than max_age={effective_max_age} real frames "
           f"(track correctly dropped and reassigned a new ID after "
           f"these): {len(gap_events)}")
     for start, end, length in gap_events[:20]:
@@ -124,8 +135,28 @@ def main(csv_path, quiet=False):
 if __name__ == "__main__":
     args = sys.argv[1:]
     quiet_flag = "--quiet" in args
-    positional = [a for a in args if a != "--quiet"]
+
+    max_distance_override = None
+    max_age_override = None
+    positional = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--quiet":
+            i += 1
+        elif args[i] == "--max-distance":
+            max_distance_override = float(args[i + 1])
+            i += 2
+        elif args[i] == "--max-age":
+            max_age_override = int(args[i + 1])
+            i += 2
+        else:
+            positional.append(args[i])
+            i += 1
+
     if len(positional) != 1:
-        print("Usage: python -m src.track_det.run_on_p1_rois path/to/p1_rois.csv [--quiet]")
+        print("Usage: python -m src.track_det.run_on_p1_rois path/to/p1_rois.csv "
+              "[--quiet] [--max-distance FLOAT] [--max-age INT]")
         sys.exit(1)
-    main(positional[0], quiet=quiet_flag)
+
+    main(positional[0], quiet=quiet_flag,
+         max_distance=max_distance_override, max_age=max_age_override)

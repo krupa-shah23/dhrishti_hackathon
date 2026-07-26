@@ -85,6 +85,8 @@ def fuse_track_detections(
     if not tracks or not detections:
         return fused
 
+    detections = sorted(detections, key=lambda d: d[2], reverse=True)
+
     n_tracks = len(tracks)
     n_dets = len(detections)
 

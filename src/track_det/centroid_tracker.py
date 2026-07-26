@@ -45,7 +45,7 @@ def _dist(a: Tuple[float, float], b: Tuple[float, float]) -> float:
 
 
 class CentroidTracker:
-    def __init__(self, max_distance: float = 80.0, max_age: int = 10):
+    def __init__(self, max_distance: float = 80.0, max_age: int = 25):
         self.max_distance = max_distance
         self.max_age = max_age
         self.next_id = 1
