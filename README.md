@@ -1,78 +1,34 @@
 # Motion & ROI Detection Module
 
-This module implements the **Motion & ROI (Region of Interest) Detection** stage of the Offline Exam-Hall Video Analytics pipeline. Its purpose is to detect meaningful motion in surveillance footage, suppress background noise, and generate clean bounding-box proposals for downstream tracking and behavioral analysis.
+Detects meaningful motion in surveillance/exam-hall footage, suppresses background and camera noise, and produces clean bounding-box proposals for downstream tracking.
 
 ---
 
-## Overview
-
-The pipeline processes each input frame through the following stages:
+## Pipeline
 
 ```
-Input Video
+Input (image sequence or .avi video)
      │
      ▼
-Background Subtraction (MOG2)
+Background Subtraction (MOG2, shadow-aware)
      │
      ▼
-Motion Mask Generation
+Morphological Noise Removal (open → close → dilate)
      │
      ▼
-Morphological Noise Removal
+Static Exclusion Mask  (per-clip validated background regions)
      │
      ▼
-Contour Detection
+Contour Extraction → Area / Aspect / Fill-ratio Filtering
      │
      ▼
-ROI (Bounding Box) Extraction
+Full-Frame Blob Rejection  (MAX_AREA_FRACTION)
      │
      ▼
-Static Region Exclusion
-     │
-     ▼
-Camera Shake Compensation
-     │
-     ▼
-Final ROIs
+Final ROIs  →  [(x1, y1, x2, y2), ...]
 ```
 
-The resulting ROIs are used as input for the tracking module.
-
----
-
-## Features
-
-### Motion Detection
-
-- Background subtraction using OpenCV's MOG2
-- Shadow-aware foreground detection
-- Configurable background learning rate
-- Motion mask generation for every frame
-
-### ROI Detection
-
-- Morphological opening and closing for noise suppression
-- Contour extraction
-- Minimum-area filtering
-- Bounding-box generation
-- Standardized ROI interface for downstream modules
-
-### Robustness Improvements
-
-- Static exclusion masks for persistent background motion
-- Optional ignore-region support
-- Phase-correlation based camera shake compensation
-- Configurable stabilization pipeline
-
-### Evaluation & Benchmarking
-
-- Frame Difference baseline
-- MOG2-only baseline
-- ROI pipeline evaluation
-- Full pipeline evaluation
-- Pixel-level Precision, Recall and F1 evaluation for motion masks
-- Box-level IoU-based Precision, Recall and F1 evaluation for ROI outputs
-- CSV benchmark generation for quantitative comparison
+Camera-shake compensation (phase correlation) is available as an optional pre-step — see **Known Limitations** before enabling it.
 
 ---
 
@@ -81,122 +37,56 @@ The resulting ROIs are used as input for the tracking module.
 ```
 src/
 └── motion/
-    ├── motion.py
-    ├── roi.py
-    ├── shake_compensation.py
-    ├── exclusion_regions.py
-    ├── baseline_benchmark.py
+    ├── motion.py               # MotionEstimator, get_motion_mask(), video + image-sequence loading
+    ├── roi.py                  # get_rois(), exclusion mask + full-frame blob filtering
+    ├── shake_compensation.py   # FrameStabilizer (phase-correlation)
+    ├── exclusion_regions.py    # per-clip validated static exclusion regions
+    ├── export_rois.py          # CSV export for downstream/offline use
+    ├── eval_ground_truth.py    # pixel + box-level P/R/F1 vs CDNet/OEP ground truth
+    ├── baseline_benchmark.py   # frame-diff / MOG2-only / full-pipeline comparison
+    ├── scan_fullframe_blobs.py # sanity sweep for full-frame false positives
+    ├── spot_check_min_area.py  # min-area threshold sweep + visual validation
     ├── test_motion.py
-    └── test_roi.py
+    └── test_roi.py             # main benchmark/comparison driver
 ```
 
 ---
 
-## Pipeline Components
-
-### `motion.py`
-
-Implements foreground extraction using MOG2 background subtraction and provides the primary motion detection interface.
-
-**Output**
+## Core Interfaces
 
 ```python
-get_motion_mask(frame) -> binary_mask
+get_motion_mask(frame) -> binary_mask          # motion.py
+get_rois(mask, exclusion_regions=None) -> [(x1, y1, x2, y2), ...]   # roi.py
 ```
 
----
-
-### `roi.py`
-
-Processes motion masks to generate clean Regions of Interest.
-
-Operations include:
-
-- Morphological filtering
-- Contour extraction
-- Area filtering
-- Bounding-box generation
-
-**Output**
-
-```python
-get_rois(mask) -> List[(x1, y1, x2, y2)]
-```
+Box format is locked as `(x1, y1, x2, y2)` across all modules and CSV outputs — **not** `(x, y, w, h)`.
 
 ---
 
-### `shake_compensation.py`
+## Datasets
 
-Reduces false detections caused by camera vibration using phase-correlation based frame alignment before motion detection.
-
----
-
-### `exclusion_regions.py`
-
-Defines static regions that should be ignored during ROI generation (for example, persistent background motion such as ceiling fans).
+- **CDNet2014** — shadow, dynamicBackground, lowFramerate, and cameraJitter categories (9 clips)
+- **MSU OEP** — real exam-proctoring webcam video (`.avi`, 25fps, 640×480, 24 subjects). Only webcam files are used (wearcam is head-mounted, incompatible with static-camera MOG2). Requires `OEP_MIN_AREA=1500` (vs. CDNet defaults) due to close-up-framing texture noise.
 
 ---
 
-### `baseline_benchmark.py`
+## Evaluation
 
-Runs quantitative evaluation across multiple pipeline variants and generates benchmark logs.
-
-Evaluated variants:
-
-- Frame Difference
-- MOG2 Only
-- MOG2 + ROI
-- Full Pipeline
-
-Generated metrics:
-
-- Precision
-- Recall
-- F1 Score
-- IoU-based ROI evaluation
-- CSV benchmark reports
+- `test_roi.py` — before/after comparisons for exclusion masks and stabilization, plus a standard run across all clips
+- `eval_ground_truth.py` — pixel- and IoU-matched box-level Precision/Recall/F1 against ground truth (uses `baseline_benchmark.py`'s box-matching, not raw rasterization)
+- `baseline_benchmark.py` — quantifies the incremental value of morphology/contour ROI logic over frame-diff-only and MOG2-only baselines
 
 ---
 
-## Dataset
+## Known Limitations
 
-Development and evaluation were performed using selected sequences from the **CDNet2014** dataset, covering multiple challenging scenarios including:
-
-- Shadow
-- Dynamic Background
-- Low Frame Rate
-- Camera Jitter
+- **Camera-shake compensation degrades accuracy on severe jitter.** Validated against ground truth: improves F1 on mild jitter (<1px avg translation, e.g. boulevard/sidewalk: +1–4%), but reduces F1 on severe jitter (>6px avg translation, e.g. badminton/traffic: -1–5%). Root cause not fully confirmed — likely per-frame (non-trajectory-smoothed) phase correlation becoming unreliable at larger shifts, possibly compounded by moving foreground biasing the correlation peak. **Do not enable stabilization on high-shake footage without re-validating against ground truth first.**
+- **OEP validation coverage is partial.** Only subject1 and subject10 (of 24) have been checked for fragmentation and full-frame-blob artifacts. Any additional subject should be re-validated with `spot_check_min_area.py` / `scan_fullframe_blobs.py` before trusting its output.
+- **OEP `gt.txt` label semantics:** subject1's ground-truth file reportedly contains a label ID (`6`) not covered by the paper's documented 5-category scheme. Unconfirmed whether this is a real category, a labeling artifact, or a parsing issue — affects ground-truth evaluation for that subject only.
+- If adding OEP clips to `baseline_benchmark.py`, `min_area=OEP_MIN_AREA` must be passed explicitly — its current defaults are CDNet-tuned and will reproduce OEP's fragmentation issue silently otherwise.
 
 ---
 
-## Design Goals
+## Technologies
 
-The module is designed to:
-
-- Detect meaningful motion reliably
-- Minimize background noise and false detections
-- Produce stable ROI proposals
-- Integrate seamlessly with downstream tracking
-- Support reproducible quantitative evaluation
-
----
-
-## Output
-
-For each processed frame, the module provides:
-
-- Binary foreground mask
-- Clean Regions of Interest (bounding boxes)
-- Visualization overlays
-- Benchmark metrics
-- CSV evaluation reports
-
----
-
-## Technologies Used
-
-- Python 3
-- OpenCV
-- NumPy
-- SciPy
-- Matplotlib
+Python 3, OpenCV, NumPy, SciPy, Matplotlib
