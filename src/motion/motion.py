@@ -120,6 +120,42 @@ def process_clip(folder_path, history=500, var_threshold=25,
 # directly so background modeling persists across frames.
 _default_estimator = None
 
+def process_video(video_path, history=500, var_threshold=25,
+                   learning_rate=0.0008, use_stabilization=False):
+    """
+    Runs MOG2 over a single video file (e.g. MSU OEP .avi clips) — first
+    genuinely video-file dataset in the pipeline; CDNet and ShanghaiTech
+    are both image sequences and use process_clip() instead.
+    Returns: list of masks, list of per-frame motion intensity floats,
+             and the source video's real (measured, not assumed) fps/resolution/frame_count.
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open video: {video_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    estimator = MotionEstimator(history=history, var_threshold=var_threshold,
+                                 learning_rate=learning_rate,
+                                 use_stabilization=use_stabilization)
+    masks = []
+    intensities = []
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        mask = estimator.get_motion_mask(frame)
+        masks.append(mask)
+        intensities.append(motion_intensity(mask))
+
+    cap.release()
+
+    metadata = {"fps": fps, "width": width, "height": height, "frame_count": frame_count}
+    return masks, intensities, metadata
 
 def get_motion_mask(frame):
     global _default_estimator

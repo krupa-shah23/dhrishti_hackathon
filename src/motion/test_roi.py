@@ -10,6 +10,7 @@ Runs motion + ROI together on each clip, saves:
 
 import os
 import csv
+import glob
 import cv2
 import numpy as np
 
@@ -26,7 +27,33 @@ CLIP_PATHS = {
     "boulevard": "data/cameraJitter/boulevard/input",
     "sidewalk": "data/cameraJitter/sidewalk/input",
     "traffic": "data/cameraJitter/traffic/input",
+    "shanghai_01_001": "data/shanghaitech/testing/frames/01_001",
+    "shanghai_01_0015": "data/shanghaitech/testing/frames/01_0015",
 }
+
+OEP_BASE = "data/OEP database"
+OEP_MIN_AREA = 1500  # webcam close-up framing makes hair/glasses/fabric texture noise
+                      # clear MIN_CONTOUR_AREA=500 (tuned for CDNet's smaller, farther
+                      # subjects); validated via sweep_min_area against subject1 frame
+                      # 14000 (hand-raise gesture) — box survives intact at this value
+                      # while most hair/collar fragmentation clears. See sweep results
+                      # in outputs/benchmark_logs/subject1_ma*_rois.csv for the full trend.
+OEP_SUBJECTS = ["subject1", "subject10", "subject11", "subject12", "subject13",
+                "subject14", "subject15", "subject16", "subject17", "subject18",
+                "subject19", "subject2", "subject20", "subject21", "subject22",
+                "subject23", "subject24", "subject3", "subject4", "subject5",
+                "subject6", "subject7", "subject8", "subject9"]
+
+def find_oep_webcam_file(subject_folder):
+    """
+    OEP video filenames are username-based (e.g. Yousef1.avi = webcam,
+    Yousef2.avi = wearcam) — only the webcam file (ends in '1.avi') is used;
+    the wearcam is head-mounted and incompatible with a static-camera pipeline.
+    """
+    candidates = glob.glob(os.path.join(subject_folder, "*1.avi"))
+    if not candidates:
+        raise FileNotFoundError(f"No webcam (*1.avi) file found in {subject_folder}")
+    return candidates[0]
 
 MASK_OUT_DIR = "outputs/masks"
 LOG_OUT_DIR = "outputs/benchmark_logs"
@@ -41,9 +68,27 @@ def load_frames_from_folder(folder_path):
             yield fname, frame
 
 
-def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
-                   use_stabilization=False):
+def load_frames_from_video(video_path):
     """
+    Frame loader for genuine video files (MSU OEP .avi), parallel to
+    load_frames_from_folder() which handles CDNet/ShanghaiTech image sequences.
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open video: {video_path}")
+    i = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        yield f"frame_{i:06d}", frame
+        i += 1
+    cap.release()
+
+def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
+                   use_stabilization=False, is_video=False, var_threshold=25,
+                   min_area=500):
+    """for i, (fname, original_frame) in enumerate(load_frames_from_folder(folder_path)):
     Runs ROI detection on a clip and writes overlay samples + a CSV.
 
     exclusion_regions: list of (x1,y1,x2,y2) tuples passed straight to
@@ -54,15 +99,20 @@ def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
     """
     label = clip_name + suffix
     print(f"\n--- Running ROI check on: {label} ---")
-    if not os.path.isdir(folder_path):
-        print(f"  [SKIP] Folder not found: {folder_path}")
+    path_exists = os.path.isfile(folder_path) if is_video else os.path.isdir(folder_path)
+    if not path_exists:
+        print(f"  [SKIP] {'File' if is_video else 'Folder'} not found: {folder_path}")
         return None
 
     out_dir = os.path.join(MASK_OUT_DIR, label)
+    _probe = load_frames_from_video(folder_path) if is_video else load_frames_from_folder(folder_path)
+    for _fname, _frame in _probe:
+        print(f"  Frame resolution: {_frame.shape[1]}x{_frame.shape[0]}")
+        break
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(LOG_OUT_DIR, exist_ok=True)
 
-    estimator = MotionEstimator(use_stabilization=use_stabilization)
+    estimator = MotionEstimator(use_stabilization=use_stabilization, var_threshold=var_threshold)
     csv_path = os.path.join(LOG_OUT_DIR, f"{label}_rois.csv")
     total_boxes = 0
     frame_count = 0
@@ -72,7 +122,8 @@ def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
         writer = csv.writer(f)
         writer.writerow(["frame_index", "x1", "y1", "x2", "y2"])
 
-        for i, (fname, original_frame) in enumerate(load_frames_from_folder(folder_path)):
+        frame_source = load_frames_from_video(folder_path) if is_video else load_frames_from_folder(folder_path)
+        for i, (fname, original_frame) in enumerate(frame_source):
             mask = estimator.get_motion_mask(original_frame)
             save_sample = (i % SAMPLE_EVERY_N_FRAMES == 0)
 
@@ -80,10 +131,10 @@ def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
                 shifts.append(estimator.last_shift)
 
             if save_sample:
-                boxes, cleaned = get_rois(mask, return_cleaned=True,
+                boxes, cleaned = get_rois(mask, min_area=min_area, return_cleaned=True,
                                           exclusion_regions=exclusion_regions)
             else:
-                boxes = get_rois(mask, exclusion_regions=exclusion_regions)
+                boxes = get_rois(mask, min_area=min_area, exclusion_regions=exclusion_regions)
                 cleaned = None
 
             total_boxes += len(boxes)
@@ -132,6 +183,67 @@ def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
     return result
 
 
+def sweep_var_threshold(clip_name, folder_path, thresholds=(16, 20, 25), is_video=False):
+    """
+    Runs the same clip at multiple MOG2 varThreshold values, everything else
+    fixed, to test whether lowering sensitivity recovers low-contrast misses
+    (e.g. light clothing on light pavement) without reintroducing false
+    positives. Manually cross-check overlay samples at the frames where a
+    miss was previously observed (e.g. 00120/00140/00160/00200 for
+    shanghai_01_0015) — avg ROIs/frame alone won't tell you if the specific
+    miss was fixed or if new false positives appeared elsewhere.
+
+    is_video: True for OEP-style .avi inputs (see find_oep_webcam_file),
+    False for CDNet/ShanghaiTech image-sequence folders.
+    """
+    print(f"\n{'='*60}")
+    print(f"  varThreshold SWEEP: {clip_name}")
+    print(f"{'='*60}")
+
+    results = []
+    for vt in thresholds:
+        r = run_roi_check(clip_name, folder_path,
+                          suffix=f"_vt{vt}", var_threshold=vt, is_video=is_video)
+        if r:
+            results.append((vt, r))
+
+    print(f"\n  --- Sweep summary ---")
+    print(f"  {'varThreshold':<15} {'Avg ROIs/frame':>16}")
+    print(f"  {'-'*35}")
+    for vt, r in results:
+        print(f"  {vt:<15} {r['avg_rois']:>16.3f}")
+    print(f"\n  Next: manually check overlay samples in outputs/masks/"
+          f"{clip_name}_vt<N>/ at the frames where misses were previously "
+          f"observed, to confirm the miss is actually fixed, not just that "
+          f"the average changed.")
+
+def sweep_min_area(clip_name, folder_path, areas=(500, 1000, 1500, 2000), is_video=False, var_threshold=25):
+    """
+    Runs the same clip at multiple MIN_CONTOUR_AREA values, var_threshold held
+    fixed at whatever value the varThreshold sweep settled on. Tests whether
+    raising the area floor clears texture-noise blobs (hair/glasses/fabric on
+    a close-framed webcam subject) without eating the real face/torso box.
+    """
+    print(f"\n{'='*60}")
+    print(f"  min_area SWEEP: {clip_name}")
+    print(f"{'='*60}")
+
+    results = []
+    for ma in areas:
+        r = run_roi_check(clip_name, folder_path,
+                          suffix=f"_ma{ma}", min_area=ma,
+                          var_threshold=var_threshold, is_video=is_video)
+        if r:
+            results.append((ma, r))
+
+    print(f"\n  --- Sweep summary ---")
+    print(f"  {'min_area':<15} {'Avg ROIs/frame':>16}")
+    print(f"  {'-'*35}")
+    for ma, r in results:
+        print(f"  {ma:<15} {r['avg_rois']:>16.3f}")
+    print(f"\n  Next: check outputs/masks/{clip_name}_ma<N>/roi_sample_03560.jpg "
+          f"specifically — confirm fragments clear without losing the face/torso box.")
+    
 def compare_exclusion_mask(clip_name, folder_path, exclusion_regions):
     """
     Runs the same clip twice — once without and once with the exclusion mask —
@@ -239,6 +351,20 @@ if __name__ == "__main__":
         compare_stabilization(clip_name, CLIP_PATHS[clip_name])
 
     test_ignore_regions("cubicle", CLIP_PATHS["cubicle"], [(0, 0, 150, 480)])
+
+    sweep_var_threshold("shanghai_01_0015", CLIP_PATHS["shanghai_01_0015"])
+
+    subj1_video = find_oep_webcam_file(os.path.join(OEP_BASE, "subject1"))
+    sweep_var_threshold("subject1", subj1_video, thresholds=(25, 40, 55), is_video=True)
+    sweep_min_area("subject1", subj1_video, areas=(500, 1000, 1500, 2000), is_video=True)
+
+    print(f"\n{'='*60}")
+    print(f"  OEP PILOT RUN")
+    print(f"{'='*60}")
+    for subj in ["subject1", "subject10"]:  # subject1 = actor, subject10 = real exam-taker
+        subj_folder = os.path.join(OEP_BASE, subj)
+        video_path = find_oep_webcam_file(subj_folder)
+        run_roi_check(subj, video_path, is_video=True, min_area=OEP_MIN_AREA)
 
     # --- Standard run for all other clips (no exclusion mask yet) ------------
     print(f"\n{'='*60}")

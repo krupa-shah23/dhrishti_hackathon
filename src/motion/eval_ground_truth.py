@@ -59,11 +59,7 @@ def load_temporal_roi(clip_dir, total_frames):
     return start, end
 
 
-def rasterize_boxes(boxes, shape):
-    m = np.zeros(shape, dtype=np.uint8)
-    for (x1, y1, x2, y2) in boxes:
-        m[y1:y2 + 1, x1:x2 + 1] = 1
-    return m
+from baseline_benchmark import gt_mask_to_boxes, match_boxes  # reuse the same IoU-matched box scoring as the Day-5 benchmark table, so box-F1 means the same thing in both scripts
 
 
 def accumulate_confusion(pred_bin, gt_frame, roi_mask):
@@ -130,13 +126,17 @@ def run_clip(clip_dir, use_stabilization):
         mask = estimator.get_motion_mask(frame)  # 0/255; stabilization applied internally if enabled
         mask_bin = (mask > 127).astype(np.uint8)
 
-        boxes = get_rois(mask)
-        box_bin = rasterize_boxes(boxes, mask_bin.shape)
-
         tp, fp, fn, _ = accumulate_confusion(mask_bin, gt, roi_mask)
         pix_tp += tp; pix_fp += fp; pix_fn += fn
 
-        tp, fp, fn, _ = accumulate_confusion(box_bin, gt, roi_mask)
+        # Box-level: IoU-matched detection comparison, same method as baseline_benchmark.py,
+        # NOT pixel-overlap of rasterized boxes (that was the earlier inconsistency).
+        pred_boxes = get_rois(mask)
+        gt_fg = (gt == GT_MOTION)
+        if roi_mask is not None:
+            gt_fg = gt_fg & (roi_mask == 1)
+        gt_boxes = gt_mask_to_boxes(gt_fg)
+        tp, fp, fn = match_boxes(pred_boxes, gt_boxes)
         box_tp += tp; box_fp += fp; box_fn += fn
 
     pix_p, pix_r, pix_f1 = prf1(pix_tp, pix_fp, pix_fn)

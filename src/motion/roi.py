@@ -26,6 +26,9 @@ DILATE_ITERATIONS = 2
 MIN_ASPECT_RATIO = 0.25   # width/height — kills thin/wide slivers (grout lines, door edges)
 MAX_ASPECT_RATIO = 1.8    # width/height — kills very flat wide blobs
 MIN_FILL_RATIO = 0.35     # contour_area / bbox_area — kills sparse/scattered noise contours
+MAX_AREA_FRACTION = 0.6   # bbox_area / frame_area — kills whole-frame blobs (exposure/lighting
+                          # shifts, IR-cut switching) that min_area alone can never filter,
+                          # since they're large, not small
 
 
 def clean_mask(mask, kernel_size=MORPH_KERNEL_SIZE):
@@ -46,11 +49,12 @@ def clean_mask(mask, kernel_size=MORPH_KERNEL_SIZE):
     return dilated
 
 
-def is_valid_roi(area, w, h, min_area=MIN_CONTOUR_AREA):
+def is_valid_roi(area, w, h, min_area=MIN_CONTOUR_AREA, frame_area=None):
     """
     Filters out noise-shaped contours that survive area thresholding:
-    thin slivers (grout lines, door edges) and sparse/scattered blobs
-    (flicker noise) that aren't person-shaped.
+    thin slivers (grout lines, door edges), sparse/scattered blobs (flicker
+    noise), and whole-frame blobs (exposure/lighting shifts) that aren't
+    person-shaped.
     """
     if area < min_area:
         return False
@@ -63,6 +67,9 @@ def is_valid_roi(area, w, h, min_area=MIN_CONTOUR_AREA):
     fill_ratio = area / float(bbox_area) if bbox_area > 0 else 0
     if fill_ratio < MIN_FILL_RATIO:
         return False
+
+    if frame_area is not None and bbox_area > MAX_AREA_FRACTION * frame_area:
+        return False  # whole-frame false positive (e.g. exposure/lighting shift), not real motion
 
     return True
 
@@ -119,12 +126,13 @@ def get_rois(mask, min_area=MIN_CONTOUR_AREA, return_cleaned=False,
     )
 
     h_img, w_img = mask.shape[:2]
+    frame_area = h_img * w_img
     boxes = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
         x, y, w, h = cv2.boundingRect(cnt)
-        if not is_valid_roi(area, w, h, min_area):
-            continue  # drop noise-sized or noise-shaped contours before they leave this module
+        if not is_valid_roi(area, w, h, min_area, frame_area=frame_area):
+            continue  # drop noise-sized, noise-shaped, or whole-frame-blob contours before they leave this module
         x1, y1 = x, y
         x2 = min(x + w, w_img - 1)
         y2 = min(y + h, h_img - 1)

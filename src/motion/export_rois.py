@@ -33,6 +33,7 @@ import cv2
 
 from motion import get_motion_mask
 from roi import get_rois
+from exclusion_regions import get_exclusion_regions
 
 DEFAULT_OUT = os.path.join(os.path.dirname(__file__), "..", "p1_rois.csv")
 
@@ -53,6 +54,15 @@ def export_rois(input_dir, out_path):
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
+    # input_dir is e.g. "data/shadow/copyMachine/input" -- clip name is the
+    # parent folder name. Look up validated exclusion regions the same way
+    # test_roi.py does, so this export matches the live pipeline's output
+    # instead of silently reproducing pre-mask (worse) results.
+    clip_name = os.path.basename(os.path.normpath(os.path.join(input_dir, "..")))
+    exclusion_regions = get_exclusion_regions(clip_name)
+    if exclusion_regions:
+        print(f"[export_rois] Applying {len(exclusion_regions)} exclusion region(s) for '{clip_name}'")
+
     width = height = None
     frame_index = 0
     total_rois = 0
@@ -70,7 +80,7 @@ def export_rois(input_dir, out_path):
                 height, width = frame.shape[:2]
 
             mask = get_motion_mask(frame)
-            boxes = get_rois(mask)
+            boxes = get_rois(mask, exclusion_regions=exclusion_regions)
 
             for (x1, y1, x2, y2) in boxes:
                 writer.writerow([frame_index, x1, y1, x2, y2])
