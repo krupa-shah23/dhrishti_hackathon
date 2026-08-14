@@ -9,7 +9,11 @@ Shared contract (do not change signature without team sign-off):
 import cv2
 import numpy as np
 
-from shake_compensation import FrameStabilizer
+try:
+    from .shake_compensation import FrameStabilizer
+except ImportError:
+    from shake_compensation import FrameStabilizer
+
 
 
 class MotionEstimator:

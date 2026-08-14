@@ -14,8 +14,15 @@ import glob
 import cv2
 import numpy as np
 
-from motion import MotionEstimator
-from roi import get_rois, draw_rois
+try:
+    from .motion import MotionEstimator
+    from .roi import get_rois, draw_rois
+    from .exclusion_regions import get_exclusion_regions
+except ImportError:
+    from motion import MotionEstimator
+    from roi import get_rois, draw_rois
+    from exclusion_regions import get_exclusion_regions
+
 
 CLIP_PATHS = {
     "cubicle": "data/shadow/cubicle/input",
@@ -314,12 +321,17 @@ def test_ignore_regions(clip_name, folder_path, regions):
     print(f"  IGNORE-REGION HOOK TEST: {clip_name}")
     print(f"{'='*60}")
 
+    if not os.path.isdir(folder_path):
+        print(f"  [SKIP] Folder not found: {folder_path}")
+        return
+
     estimator = MotionEstimator()
     estimator.set_ignore_regions(regions)
 
     violations = 0
     frame_count = 0
     rx1, ry1, rx2, ry2 = regions[0]
+
 
     for i, (fname, frame) in enumerate(load_frames_from_folder(folder_path)):
         mask = estimator.get_motion_mask(frame)
@@ -338,9 +350,8 @@ def test_ignore_regions(clip_name, folder_path, regions):
 
 
 if __name__ == "__main__":
-    from exclusion_regions import get_exclusion_regions
-
     print("test_roi.py started")
+
 
     # --- Day-3 experiment: before/after comparison on copyMachine only -------
     cm_path = CLIP_PATHS["copyMachine"]
@@ -354,17 +365,21 @@ if __name__ == "__main__":
 
     sweep_var_threshold("shanghai_01_0015", CLIP_PATHS["shanghai_01_0015"])
 
-    subj1_video = find_oep_webcam_file(os.path.join(OEP_BASE, "subject1"))
-    sweep_var_threshold("subject1", subj1_video, thresholds=(25, 40, 55), is_video=True)
-    sweep_min_area("subject1", subj1_video, areas=(500, 1000, 1500, 2000), is_video=True)
+    try:
+        subj1_video = find_oep_webcam_file(os.path.join(OEP_BASE, "subject1"))
+        sweep_var_threshold("subject1", subj1_video, thresholds=(25, 40, 55), is_video=True)
+        sweep_min_area("subject1", subj1_video, areas=(500, 1000, 1500, 2000), is_video=True)
 
-    print(f"\n{'='*60}")
-    print(f"  OEP PILOT RUN")
-    print(f"{'='*60}")
-    for subj in ["subject1", "subject10"]:  # subject1 = actor, subject10 = real exam-taker
-        subj_folder = os.path.join(OEP_BASE, subj)
-        video_path = find_oep_webcam_file(subj_folder)
-        run_roi_check(subj, video_path, is_video=True, min_area=OEP_MIN_AREA)
+        print(f"\n{'='*60}")
+        print(f"  OEP PILOT RUN")
+        print(f"{'='*60}")
+        for subj in ["subject1", "subject10"]:  # subject1 = actor, subject10 = real exam-taker
+            subj_folder = os.path.join(OEP_BASE, subj)
+            video_path = find_oep_webcam_file(subj_folder)
+            run_roi_check(subj, video_path, is_video=True, min_area=OEP_MIN_AREA)
+    except FileNotFoundError as e:
+        print(f"\n  [SKIP] OEP dataset not found: {e}")
+
 
     # --- Standard run for all other clips (no exclusion mask yet) ------------
     print(f"\n{'='*60}")

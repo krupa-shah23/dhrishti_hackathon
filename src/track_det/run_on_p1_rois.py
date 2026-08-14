@@ -36,6 +36,8 @@ from .tracker import track, reset_tracker
 
 DEFAULT_MAX_AGE = 25  # CentroidTracker's built-in default, used only when
                         # no --max-age override is passed
+DEFAULT_MAX_DISTANCE = 80.0  # CentroidTracker's built-in default
+
 
 
 def load_rois_by_frame(csv_path):

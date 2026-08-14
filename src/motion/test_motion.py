@@ -14,7 +14,11 @@ Update CLIP_PATHS below to point at your actual clip folders.
 import os
 import cv2
 import csv
-from motion import MotionEstimator, motion_intensity
+try:
+    from .motion import MotionEstimator, motion_intensity
+except ImportError:
+    from motion import MotionEstimator, motion_intensity
+
 
 print("test_motion.py started")
 
