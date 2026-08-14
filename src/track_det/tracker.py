@@ -77,3 +77,14 @@ def track(boxes: List[Tuple[float, float, float, float]]) -> List[Dict[str, Any]
         results = _tracker.update(boxes)
         return [{"track_id": tid, "box": (x1, y1, x2, y2)}
                 for tid, x1, y1, x2, y2 in results]
+
+
+def get_track_history(track_id: int) -> List[Tuple[float, float, float, float]]:
+    """
+    Returns the box history list for a specific active track_id if available.
+    """
+    if isinstance(_tracker, CentroidTracker):
+        tr = _tracker.tracks.get(track_id)
+        if tr is not None:
+            return list(tr.history)
+    return []
