@@ -44,10 +44,15 @@ import argparse
 import cv2
 import numpy as np
 
-from motion import MotionEstimator
-from roi import get_rois
-from exclusion_regions import EXCLUSION_REGIONS  # {clip_name: [(x1,y1,x2,y2), ...]}
-
+try:
+    from .motion import MotionEstimator
+    from .roi import get_rois
+    from .exclusion_regions import get_exclusion_regions
+except ImportError:
+    from motion import MotionEstimator
+    from roi import get_rois
+    from exclusion_regions import get_exclusion_regions
+    
 IOU_THRESHOLD = 0.3
 GT_MIN_AREA = 200          # drop tiny GT contour noise (compression artifacts in GT itself)
 BASELINE_MIN_AREA = 200    # light area filter for frame_diff/mog2_only, kept small on purpose

@@ -23,7 +23,7 @@ class MotionEstimator:
     """
 
     def __init__(self, history=500, var_threshold=25, detect_shadows=True,
-                 learning_rate=0.0008, use_stabilization=False):
+                 learning_rate=0.0008, use_stabilization=False, camera_mask=None):
         self.mog2 = cv2.createBackgroundSubtractorMOG2(
             history=history,
             varThreshold=var_threshold,
@@ -34,6 +34,8 @@ class MotionEstimator:
         self.use_stabilization = use_stabilization
         self.stabilizer = FrameStabilizer() if use_stabilization else None
         self.last_shift = (0.0, 0.0)  # last estimated (dx, dy), for logging/comparison
+        
+        self.camera_mask = camera_mask
 
         # Invigilator / ignore-region hook: another module can populate this
         # with [(x1, y1, x2, y2), ...] boxes; motion in these regions is
@@ -59,12 +61,20 @@ class MotionEstimator:
         if self.use_stabilization:
             frame, self.last_shift = self.stabilizer.stabilize(frame)
 
+        if self.camera_mask is not None:
+            # Mask out excluded regions BEFORE MOG2 processing
+            frame = cv2.bitwise_and(frame, frame, mask=self.camera_mask)
+
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         raw_mask = self.mog2.apply(blurred, learningRate=self.learning_rate)
 
         # MOG2 with detectShadows=True marks shadow pixels as 127 (gray).
         # We only want true foreground (255), so threshold shadows out.
         _, binary_mask = cv2.threshold(raw_mask, 200, 255, cv2.THRESH_BINARY)
+        
+        # Ensure mask is also cleaned post-MOG2 in case of artifacts
+        if self.camera_mask is not None:
+            binary_mask = cv2.bitwise_and(binary_mask, self.camera_mask)
 
         for (x1, y1, x2, y2) in self.ignore_regions:
             binary_mask[y1:y2, x1:x2] = 0
