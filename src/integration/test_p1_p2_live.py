@@ -116,7 +116,6 @@ def test_live_pipeline_synthetic_sequence():
     print(f"Processing time: {elapsed:.4f} seconds")
     print(f"Approximate FPS: {fps:.1f} FPS")
     print("STATUS: PHASE 2 TEST PASS")
-    return True
 
 
 if __name__ == "__main__":
