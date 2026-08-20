@@ -1,4 +1,5 @@
 import numpy as np
+from audio_utils import get_audio_energy, get_onset_strength
 
 
 def extract_features(track: dict) -> dict:
@@ -34,7 +35,6 @@ def extract_features(track: dict) -> dict:
     audio_energy = 0.0
     onset_strength = 0.0
     if track.get("audio_path"):
-        from .audio_utils import get_audio_energy, get_onset_strength
         audio_energy = get_audio_energy(track["audio_path"], start, end)
         onset_strength = get_onset_strength(track["audio_path"], start, end)
 
@@ -70,3 +70,10 @@ def extract_features(track: dict) -> dict:
             feats[k] = 0.0
 
     return feats
+
+
+if __name__ == "__main__":
+    from mock_track_data import generate_mock_tracks
+    tracks = generate_mock_tracks(3)
+    for t in tracks:
+        print(t["event_id"], extract_features(t))
