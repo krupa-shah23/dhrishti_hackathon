@@ -1,0 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
+import { records } from '../data/mockData';
+import { Card, VideoThumbnail } from '../components/common/Ui';
+export default function PreviousRecords(){const navigate=useNavigate();return <><div className="page-title"><h1>Previous Records</h1><p>Review completed surveillance analysis reports.</p></div><div className="records-grid">{records.map(r=><Card key={r.id} className="record"><VideoThumbnail color={r.color}/><div className="record-body"><h2>{r.title}</h2><p>{r.date} <i/> <MapPin size={14}/> {r.room}</p><div className="incident-number"><span>Total Incidents</span><b>{r.incidents}</b></div><div className="confidence-bars"><div><span>High</span><b>{r.high}%</b><i style={{width:`${r.high}%`}}/></div><div><span>Medium</span><b>{r.medium}%</b><i style={{width:`${r.medium}%`}}/></div><div><span>Low</span><b>{r.low}%</b><i style={{width:`${r.low}%`}}/></div></div><button className="primary wide" onClick={()=>navigate(`/analysis/${r.id}`)}>View Analysis</button></div></Card>)}</div></>}
