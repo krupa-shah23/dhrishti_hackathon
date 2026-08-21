@@ -1,10 +1,21 @@
 import numpy as np
 from audio_utils import get_audio_energy, get_onset_strength
+from phase_weighting import get_exam_phase, phase_weight_multiplier
 
-def extract_features(event: dict) -> dict:
+def extract_features(event: dict, video_duration: float = None) -> dict:
     duration = event.get("duration", 0.0)
     motion_area = event.get("avg_motion_intensity", 0.0)
     roi_size = event.get("peak_intensity", 0.0)
+
+    # Phase weighting — auto-compute if video_duration given and phase not already set
+    if video_duration is not None:
+        phase = get_exam_phase(event["start_time"], video_duration)
+        event["exam_phase"] = phase
+        weight = phase_weight_multiplier(phase)
+        motion_area = motion_area / weight
+    else:
+        phase = event.get("exam_phase", "mid")
+
     density = float(motion_area / roi_size) if roi_size > 0 else 0.0
     frequency = event.get("repetition_count", 1)
     mog2_ratio = event.get("mog2_foreground_ratio", 0.0)
@@ -17,7 +28,6 @@ def extract_features(event: dict) -> dict:
         onset_strength = get_onset_strength(audio_path, event["start_time"], event["end_time"])
 
     object_flag = int(event.get("object_detected") is not None)
-    phase = event.get("exam_phase", "mid")
     phase_start = 1 if phase == "start" else 0
     phase_end = 1 if phase == "end" else 0
 
@@ -43,4 +53,4 @@ if __name__ == "__main__":
     from mock_event_data import generate_mock_events
     events = generate_mock_events(3)
     for e in events:
-        print(e["event_id"], extract_features(e))
+        print(e["event_id"], extract_features(e, video_duration=143.12))
