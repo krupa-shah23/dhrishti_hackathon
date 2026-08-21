@@ -16,6 +16,8 @@ FRAME -> P1 get_motion_mask(frame) -> P1 get_rois(mask) -> P2 track(boxes) -> tr
 from typing import List, Dict, Any, Tuple, Optional, Generator
 import cv2
 import numpy as np
+import collections
+from pathlib import Path
 
 try:
     from src.motion.motion import MotionEstimator
@@ -33,6 +35,18 @@ except ImportError:
     from ..track_det.detector import detect_objects
     from ..track_det.fusion import fuse_track_detections
     from ..track_det.invigilator_filter import is_invigilator_track
+
+
+# Number of raw (un-skipped) frame crops buffered per active track for
+# detect_objects(). Decoupled from effective_fps by design (Krupa/P2 decision):
+# occlusion coverage must not collapse to N=1 on long-duration clips that
+# get a low sample rate. 7 raw frames ≈ 0.3s at 22fps (07_seat_exchange.mkv),
+# enough to catch momentary occlusion lift. Memory: ~70 frames × ~700KB =
+# ~50MB peak across 10 active tracks — acceptable; P4 to flag if stress tests
+# show pressure.
+# P4 note: this proceeds on P2's authority over the occlusion-handling
+# contract. Loop P4 in if memory pressure appears during Day 5 stress tests.
+N_RAW_WINDOW = 7
 
 
 class P1P2TrackerPipeline:
@@ -55,12 +69,33 @@ class P1P2TrackerPipeline:
         containment_thresh: float = 0.5,
     ):
         self.clip_name = clip_name
-        if exclusion_regions is not None:
-            self.exclusion_regions = exclusion_regions
-        elif clip_name:
-            self.exclusion_regions = get_exclusion_regions(clip_name)
+        self.exam_mode = "CBT"
+
+        if clip_name:
+            manifest_path = Path("data/drishti/manifest.csv")
+            if manifest_path.exists():
+                import pandas as pd
+                try:
+                    df = pd.read_csv(manifest_path)
+                    row = df[df["filename"] == clip_name]
+                    if not row.empty:
+                        self.exam_mode = row.iloc[0].get("exam_mode", "CBT")
+                except Exception as e:
+                    print(f"[pipeline] Failed to load manifest metadata for {clip_name}: {e}")
+
+            if exclusion_regions is not None:
+                self.exclusion_regions = exclusion_regions
+            else:
+                self.exclusion_regions = get_exclusion_regions(clip_name)
         else:
-            self.exclusion_regions = []
+            self.exclusion_regions = exclusion_regions if exclusion_regions is not None else []
+
+        # Window size is a fixed raw-frame buffer, decoupled from effective_fps.
+        # See N_RAW_WINDOW constant above for justification.
+        self.window_size = N_RAW_WINDOW
+        self.track_crop_buffer = collections.defaultdict(lambda: collections.deque(maxlen=self.window_size))
+        print(f"[pipeline] Initialized with exam_mode={self.exam_mode}, "
+              f"window_size={self.window_size} raw frames (decoupled from fps)")
 
         self.min_area = min_area
         self.containment_thresh = containment_thresh
@@ -101,14 +136,47 @@ class P1P2TrackerPipeline:
         # 2. Track (MUST be called on every frame including empty boxes)
         tracks = track(boxes)
 
-        # 3. Object Detection (safely isolated)
+        # 3. Object Detection (Windowed + Crop-Slicing)
         detections = []
         if frame is not None:
-            try:
-                detections = detect_objects(frame)
-            except Exception as e:
-                print(f"[pipeline] Exception during detect_objects at frame {frame_index}: {e}")
-                detections = []
+            active_tids = set()
+            h, w = frame.shape[:2]
+            
+            # Extract current crop for each active track
+            for tr in tracks:
+                tid = tr["track_id"]
+                active_tids.add(tid)
+                x1, y1, x2, y2 = map(int, tr["box"])
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                if x2 > x1 and y2 > y1:
+                    crop = frame[y1:y2, x1:x2].copy()
+                    self.track_crop_buffer[tid].append(crop)
+            
+            # Clean up stale tracks from buffer
+            for tid in list(self.track_crop_buffer.keys()):
+                if tid not in active_tids:
+                    del self.track_crop_buffer[tid]
+
+            # Call detector per active track using its accumulated crops
+            for tid in active_tids:
+                crop_list = list(self.track_crop_buffer[tid])
+                if len(crop_list) > 0:
+                    try:
+                        track_dets = detect_objects(crop_list, self.exam_mode)
+                        
+                        # Translate detection boxes (relative to crop) back to absolute frame coordinates
+                        current_box = next((tr["box"] for tr in tracks if tr["track_id"] == tid), None)
+                        if current_box and track_dets:
+                            bx1, by1, _, _ = map(int, current_box)
+                            bx1, by1 = max(0, bx1), max(0, by1)
+                            for (bbox, cls_name, conf) in track_dets:
+                                rx1, ry1, rx2, ry2 = bbox
+                                abs_box = (rx1 + bx1, ry1 + by1, rx2 + bx1, ry2 + by1)
+                                detections.append((abs_box, cls_name, conf))
+                    except Exception as e:
+                        print(f"[pipeline] Exception during detect_objects for tid {tid} at frame {frame_index}: {e}")
 
         # 4. Fusion
         fused_tracks = fuse_track_detections(
@@ -135,6 +203,7 @@ class P1P2TrackerPipeline:
         Reset pipeline state for a new clip/video.
         """
         self.motion_estimator.reset()
+        self.track_crop_buffer.clear()
         reset_tracker(max_distance=max_distance, max_age=max_age)
 
 
