@@ -1,0 +1,30 @@
+event_id,video_id,clip_ref,seat_id,start_time_s,start_time_hms,end_time_s,end_time_hms,event_type,object_detected,related_event_id,notes
+c1_e1,01.Candidate was found using a mobile phone in the examination hall..mkv,clip1,unknown,6,00:00:06,,,phone_out,phone,,Accused takes out phone
+c1_e2,01.Candidate was found using a mobile phone in the examination hall..mkv,clip1,unknown,12,00:00:12,16,00:00:16,copying,phone,,Copying - photographing the screen
+c1_e3,01.Candidate was found using a mobile phone in the examination hall..mkv,clip1,unknown,51,00:00:51,,,copying,phone,,Copying - photographing the screen (single instant, no observed end - confirm with video)
+c1_e4,01.Candidate was found using a mobile phone in the examination hall..mkv,clip1,unknown,55,00:00:55,,,intervention,,c1_e3,Someone appears to notice/intervene after the 51s copying event
+c1_e5,01.Candidate was found using a mobile phone in the examination hall..mkv,clip1,unknown,68,00:01:08,,,seat_vacated,,,Accused leaves camera scene
+c2_e1,02.Candidate was found using a mobile phone in the examination hall..mkv,clip2,unknown,0,00:00:00,190,00:03:10,setup_activity,,,Exam setup window - 3 people in scene (2 students + setup person); phase-boundary/exam_mode consideration
+c2_e2,02.Candidate was found using a mobile phone in the examination hall..mkv,clip2,unknown,190,00:03:10,,,invigilator_departure,,,Setup guy leaves scene
+c2_e3,02.Candidate was found using a mobile phone in the examination hall..mkv,clip2,unknown,206,00:03:26,,,phone_out,phone,,Accused takes phone from pocket - no copying observed. Note: clip2 is an earlier point on the same timeline as clip1.
+c3_e1,03.CCTV Mobile Usage.mkv,clip3,unknown,0,00:00:00,,,phone_hidden,phone,,Phone hidden under t-shirt at start of clip (touching pants, seated)
+c3_e2,03.CCTV Mobile Usage.mkv,clip3,unknown,56,00:00:56,,,phone_out,phone,,Takes phone out from under t-shirt
+c3_e3,03.CCTV Mobile Usage.mkv,clip3,unknown,65,00:01:05,,,copying,phone,,Photographs screen, then hides phone under desk; continues looking at desk
+c3_e4,03.CCTV Mobile Usage.mkv,clip3,unknown,81,00:01:21,89,00:01:29,copying,phone,,Takes phone out again to photograph screen
+c3_e5,03.CCTV Mobile Usage.mkv,clip3,unknown,93,00:01:33,100,00:01:40,copying,phone,,Takes phone out to copy
+c3_e6,03.CCTV Mobile Usage.mkv,clip3,unknown,107,00:01:47,,,copying,phone,,Takes phone out, photographs screen
+c3_e7,03.CCTV Mobile Usage.mkv,clip3,unknown,124,00:02:04,,,copying,phone,,Takes phone out, photographs screen, phone pointed at screen
+c3_e8,03.CCTV Mobile Usage.mkv,clip3,unknown,131,00:02:11,,,phone_hidden,phone,,Hides phone in pants
+c3_e9,03.CCTV Mobile Usage.mkv,clip3,unknown,131,00:02:11,251,00:04:11,fake_studying,,,Acts as if studying (turning book pages) until end of clip - useful negative/behavioral context
+c4_e1,04.CCTV Candidate Talking.mkv,clip4,unknown,3,00:00:03,12,00:00:12,talking,,,Candidate initiates talking with neighbor (looks around first); faces not visible
+c4_e2,04.CCTV Candidate Talking.mkv,clip4,unknown,72,00:01:12,87,00:01:27,talking,,c4_e3,Second pair talking - backs to camera, inferred from hand/head movement
+c4_e3,04.CCTV Candidate Talking.mkv,clip4,unknown,97,00:01:37,102,00:01:42,talking,,c4_e2,Same pair re-engages; initiator also subtly glances at neighbor's screen (glance-persistence case)
+c4_e4,04.CCTV Candidate Talking.mkv,clip4,unknown,140,00:02:20,143,00:02:23,talking,,c4_e2,Same pair talking again near end of clip
+c5_e1,05.Crowd observed near the reception and verification desk.mp4,clip5,n/a,,,,,unclear_crowd,,,"Crowd/movement near reception-verification desk; not confirmed exam-hall seating context. Excluded from per-seat calibration by team agreement - confirm meaning with teammates before using for F1"
+c6_e1,07_seat_exchange.mkv,clip6,unknown,4260,01:11:00,,,pre_incident,,,Girl starts looking around
+c6_e2,07_seat_exchange.mkv,clip6,unknown,4338,01:12:18,,,talking,,c6_e4,Pair discusses swapping seats
+c6_e3,07_seat_exchange.mkv,clip6,unknown,4358,01:12:38,,,pre_incident,,,Girl moves her PC ahead so he can see
+c6_e4,07_seat_exchange.mkv,clip6,unknown,4391,01:13:11,,,seat_exchange,,c6_e2,They physically get up and exchange seats
+c6_e5,07_seat_exchange.mkv,clip6,unknown,4406,01:13:26,,,invigilator_intervention,,c6_e4,Guard checks in
+c6_e6,07_seat_exchange.mkv,clip6,unknown,4471,01:14:31,,,seat_vacated,,c6_e5,Pair asked to leave the room
+c7_e1,06_phone_use.mp4,clip7,seat_12,26,00:00:26,82,00:01:22,copying,paper-chit,,Copying from a piece of paper taken from the desk. Note: filename says phone_use but this clip actually shows the paper-copying/assist incident at LUCKNOW1 - confirmed by P1.

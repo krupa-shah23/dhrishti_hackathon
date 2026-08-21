@@ -1,0 +1,6 @@
+event_id,window_start_s,window_end_s,class,confidence,note
+c1_e1,4.5,7.5,,0.0,detect_objects() returned [] for this window (takeout)
+c1_e2,10.5,17.5,,0.0,detect_objects() returned [] for this window (copying (photo of screen))
+c1_e3,49.5,52.5,,0.0,detect_objects() returned [] for this window (copying (photo of screen))
+c1_e4,53.5,56.5,,0.0,"detect_objects() returned [] for this window (intervention -- no object expected, FP check)"
+c1_e5,66.5,69.5,,0.0,"detect_objects() returned [] for this window (accused leaves scene -- no object expected, FP check)"

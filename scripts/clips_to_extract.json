@@ -1,0 +1,86 @@
+[
+  {
+    "_comment": "CLIP 1 - phone taken out (6s), copying/photo (12-16s), copying/photo again (51s). ~40 frames. Confirmed: length 2:11 (131s), 30.4MB.",
+    "video": "data/college_dataset/01.Candidate was found using a mobile phone in the examination hall..mkv",
+    "out": "data/frames_raw/clip01_ev1_takeout",
+    "fps": 2, "start": 3, "end": 9
+  },
+  {
+    "video": "data/college_dataset/01.Candidate was found using a mobile phone in the examination hall..mkv",
+    "out": "data/frames_raw/clip01_ev2_copying",
+    "fps": 2, "start": 10, "end": 18
+  },
+  {
+    "video": "data/college_dataset/01.Candidate was found using a mobile phone in the examination hall..mkv",
+    "out": "data/frames_raw/clip01_ev3_copying2",
+    "fps": 2, "start": 48, "end": 54
+  },
+
+  {
+    "_comment": "CLIP 2 - single phone-out instant at 3:26 (206s), no copying. ~20 frames. Chronologically BEFORE clip 1 per your notes, worth mentioning to P3 for event ordering context. Confirmed: length 3:32 (212s), 49.2MB - event is near the very end of the clip.",
+    "video": "data/college_dataset/02.Candidate was found using a mobile phone in the examination hall..mkv",
+    "out": "data/frames_raw/clip02_ev1_takeout",
+    "fps": 2, "start": 200, "end": 212
+  },
+
+  {
+    "_comment": "CLIP 3 - hiding phone under tshirt at start (0-6s). ~12 frames. Confirmed: length 4:41 (281s), 62.9MB.",
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev1_hiding",
+    "fps": 2, "start": 0, "end": 6
+  },
+  {
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev2_retrieval",
+    "fps": 2, "start": 53, "end": 60
+  },
+  {
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev3_photo_hide_desk",
+    "fps": 2, "start": 62, "end": 70
+  },
+  {
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev4_photo_copy_burst",
+    "_comment": "merged two closely-spaced events (1:21-1:29 photo, 1:33-1:40 copying) since the gap between them is only ~2s",
+    "fps": 2, "start": 78, "end": 103
+  },
+  {
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev5_photo",
+    "fps": 2, "start": 104, "end": 112
+  },
+  {
+    "video": "data/college_dataset/03.CCTV Mobile Usage.mkv",
+    "out": "data/frames_raw/clip03_ev6_photo_pointing_hide",
+    "_comment": "phone visibly pointing at screen at 2:04, then hidden in pant at 2:11 - good example of phone orientation/pose variety",
+    "fps": 2, "start": 121, "end": 134
+  },
+
+  {
+    "_comment": "CLIP 7 (Seat 12) - copying, continuous 26s-1:22. ~112 frames. This is your ONLY real paper/chit source now that clip 6 turned out to be a seat-swap, not an object exchange - consider supplementing with a generic paper/document dataset. Confirmed: length 1:28 (88s), 18.4MB - window ends 3s before clip end, fits fine.",
+    "video": "data/college_dataset/Seat No. 12 was seen taking a piece of paper from the desk.mkv",
+    "out": "data/frames_raw/clip07_copying",
+    "fps": 2, "start": 23, "end": 85
+  },
+
+  {
+    "_comment": "CLIP 4 - negative example (talking, no object). Sparse whole-clip sampling. Confirmed: length 2:23 (143s), 4.04MB - matches P1's manifest duration_sec 143.12 exactly.",
+    "video": "data/college_dataset/04.CCTV Candidate Talking.mkv",
+    "out": "data/frames_raw/clip04_negative",
+    "fps": 0.5
+  },
+  {
+    "_comment": "CLIP 5 - negative/crowd context. Sparse whole-clip sampling. Content still unconfirmed with team per your note - fine as a negative either way. Confirmed: length 4:00 (240s), 302MB, 1280x720 - PASTE EXACT FILENAME BELOW, still truncated.",
+    "_verify_filename": "run: Get-ChildItem data\\college_dataset -Name   and paste the full name here",
+    "video": "data/college_dataset/05.Crowd observed near the reception and verification desk..mp4",
+    "out": "data/frames_raw/clip05_negative",
+    "fps": 0.5
+  },
+  {
+    "_comment": "CLIP 6 - early/setup portion, per new P2 doc's negative-source list (P2 doc \u00a72: 'clip 4 and clip 6 early portion'). Seat-swap event doesn't start until ~1h11m (4260s), so 0-150s is pure setup/pre-exam activity, safely negative. Confirmed filename via Get-ChildItem, double-dot before extension.",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_negative_early",
+    "fps": 0.5, "start": 0, "end": 150
+  }
+]

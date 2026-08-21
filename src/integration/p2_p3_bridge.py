@@ -44,7 +44,7 @@ class P2P3Bridge:
                     "start_frame": frame_index,
                     "end_frame": frame_index,
                     "last_seen_frame": frame_index,
-                    "object_detected": False,
+                    "object_detected": None,
                     "is_invigilator": False,
                     "metadata": []
                 }
@@ -82,6 +82,10 @@ class P2P3Bridge:
         start_frame = track_data["start_frame"]
         end_frame = track_data["end_frame"]
 
+        best_detection = None
+        if track_data["metadata"]:
+            best_detection = max(track_data["metadata"], key=lambda m: m["confidence"] or 0.0)
+
         event = {
             "event_id": track_data["event_id"],
             "track_id": track_data["track_id"],
@@ -94,6 +98,7 @@ class P2P3Bridge:
             "end_time": end_frame / self.fps,
             "total_frames": end_frame - start_frame + 1,
             "object_detected": track_data["object_detected"],
+            "object_confidence": best_detection["confidence"] if best_detection else None,
             "is_invigilator": track_data["is_invigilator"],
         }
 

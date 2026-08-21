@@ -1,0 +1,32 @@
+# --- core / shared across all modules ---
+numpy>=1.24,<2.0
+opencv-python>=4.8
+pandas>=2.0
+pyyaml>=6.0
+
+# --- P1: motion & ROI (motion.py, roi.py, exclusion_regions.py, shake_compensation.py) ---
+# uses only opencv/numpy above
+
+# --- P2: detection & tracking (detector.py, tracker*.py, fusion.py, bytetrack_wrapper.py) ---
+ultralytics>=8.2
+scipy>=1.11          # Hungarian assignment (linear_sum_assignment) in fusion.py
+# bytetracker==0.3.2 intentionally NOT included: its pinned sub-dependency
+# lap==0.4.0 fails to build on modern numpy/setuptools/distutils (verified --
+# pre-2.x C extension, no clean fix short of vendoring ByteTrack from source).
+# tracker.py / centroid_tracker_v2.py are your real primary trackers; treat
+# bytetrack_wrapper.py as best-effort only, and confirm with the team it's
+# not silently assumed to be the default in any integration test.
+
+# --- P3: features & risk model (extract_features.py, train_risk_model.py, audio_utils.py) ---
+xgboost>=2.0
+scikit-learn>=1.3
+librosa>=0.10
+soundfile>=0.12
+
+# --- P4: outputs & eval (heatmap.py, timeline.py, report.py, benchmark.py) ---
+matplotlib>=3.7
+streamlit>=1.32
+fpdf2>=2.7
+
+# --- dev / test (test_*.py files across motion, track_det, integration) ---
+pytest>=8.0

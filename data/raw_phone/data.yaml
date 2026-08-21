@@ -1,5 +1,16 @@
-train: ../train/images
-val: ../valid/images
+# YOLO dataset config for phone/paper detection
+# Replaces any reference to data/raw_phone (generic Car-Person Roboflow set)
+#
+# Build this folder with:
+#   1. scripts/extract_training_frames.py  (pull frames from your real clips)
+#   2. label in Roboflow/LabelImg, export YOLO format per clip
+#   3. scripts/split_dataset.py            (clip-level train/val split + merge Kaggle)
 
-nc: 1
-names: ['Mobile_phone']
+path: data/phone_dataset   # dataset root (relative to repo root, or absolute)
+train: images/train
+val: images/val
+
+nc: 2
+names: ['phone', 'paper']
+# Add 'chit' as a third class only if it's visually distinguishable from
+# paper in your actual frames -- otherwise merge into 'paper' per the doc.

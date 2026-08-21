@@ -79,7 +79,7 @@ def test_bridge_missing_detector():
     bridge.process_fused_tracks([{"track_id": 1, "box": (0, 0, 10, 10)}], 0)
     bridge.flush()
     event = bridge.get_completed_events()[0]
-    assert event["object_detected"] is False
+    assert event["object_detected"] is None
 
 def test_bridge_real_detector():
     bridge = P2P3Bridge()

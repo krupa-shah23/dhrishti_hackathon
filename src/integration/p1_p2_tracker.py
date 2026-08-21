@@ -103,9 +103,14 @@ class P1P2TrackerPipeline:
 
         # 3. Object Detection (safely isolated)
         detections = []
-        if frame is not None:
+        if frame is not None and boxes:
             try:
-                detections = detect_objects(frame)
+                exam_mode = getattr(self, "exam_mode", "CBT")
+                crops = [frame[int(y1):int(y2), int(x1):int(x2)]
+                         for (x1, y1, x2, y2) in boxes]
+                crops = [c for c in crops if c.size > 0]
+                if crops:
+                    detections = detect_objects(crops, exam_mode)
             except Exception as e:
                 print(f"[pipeline] Exception during detect_objects at frame {frame_index}: {e}")
                 detections = []

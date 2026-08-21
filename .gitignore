@@ -1,43 +1,73 @@
+# =========================
 # Python
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
 
-# Virtual env
+# =========================
+# Virtual environments
+# =========================
 .venv/
 .venv_integration/
 .venv_312/
 venv/
 env/
 
-# VSCode
+# =========================
+# VS Code
+# =========================
 .vscode/
 
+# =========================
 # Jupyter
+# =========================
 .ipynb_checkpoints/
 
-# Models
-*.pt
+# =========================
+# Models / Weights
+# =========================
 *.pth
 *.onnx
 *.engine
 
-# Outputs
-runs/
-outputs/
-results/
+# =========================
+# Training / Experiment outputs
+# =========================
 logs/
+wandb/
 
-# Data
-data/videos/
-data/images/
-data/raw/
-data/real_footage/
-data/oep/
-*.mp4
+# =========================
+# Large raw datasets
+# =========================
+data/frames_raw/
+data/frames_new/
+data/college_dataset/
+data/raw_phone/
+data/debug_crops/
+
+# Roboflow generated dataset
+data/roboflow_export/
+
+# =========================
+# Video files
+# =========================
 *.avi
 *.mov
+*.mp4
+*.mkv
+*.webm
 
+# =========================
+# Archives
+# =========================
+*.zip
+*.tar
+*.tar.gz
+
+# =========================
 # OS
+# =========================
 .DS_Store
 Thumbs.db
