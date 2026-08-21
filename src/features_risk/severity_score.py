@@ -14,18 +14,33 @@ _model = None
 def build_training_data(labels_path="../../data/ground_truth_labels.csv"):
     labels_df = pd.read_csv(labels_path)
     labels_df = labels_df[labels_df["label"].isin(["Normal", "Suspicious"])]
-    events = generate_mock_events(len(labels_df) if len(labels_df) > 0 else 20)
-    event_map = {e["event_id"]: e for e in events}
 
     X, y = [], []
     for _, row in labels_df.iterrows():
-        e = event_map.get(row["event_id"])
-        if e is None:
-            continue
-        feats = extract_features(e)
+        event = {
+            "event_id": row["event_id"],
+            "video_id": row["video_id"],
+            "seat_id": row.get("seat_id", "Desk_unknown"),
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "duration": row["end_time"] - row["start_time"],
+            "avg_motion_intensity": row.get("avg_motion_intensity", 0.0) or 0.0,
+            "peak_intensity": row.get("peak_intensity", 0.0) or 0.0,
+            "mog2_foreground_ratio": row.get("mog2_foreground_ratio", 0.0) or 0.0,
+            "repetition_count": 1,
+            "object_detected": row.get("object_detected") if pd.notna(row.get("object_detected")) else None,
+            "object_confidence": row.get("object_confidence", 0.0) or 0.0,
+            "exam_phase": "mid",
+        }
+        feats = extract_features(event)
         X.append(list(feats.values()))
         y.append(1 if row["label"] == "Suspicious" else 0)
-    feature_names = list(extract_features(events[0]).keys())
+
+    feature_names = list(extract_features(event).keys())
+    print("Feature names:", feature_names)
+    print("First 5 rows of X:")
+    for row_x in X[:5]:
+        print(row_x)
     return np.array(X), np.array(y), feature_names
 
 def train():

@@ -51,6 +51,16 @@ none of these signals were used to generate the labels, so they can't move F1
 here. Not evidence these features are useless; real ablation gains are only
 measurable once real human-labeled events exist.
 
+## Detector Reliability — Real Finding (from P2's FP/FN sweep)
+22 FN, 7 FP (5 effective after 2 flagged as likely GT gaps, not detector faults).
+All FN are phone-class, concentrated in active-copying windows — object_flag alone
+under-detects during genuine Suspicious events. Mitigation: added object_flag_soft
+(confidence-weighted) alongside binary flag, and rely more heavily on motion/duration
+features to catch events even when detection misses. FP confidences all <0.5 —
+threshold at 0.5 for binary flag is empirically justified by this data.
+
+clip3's 8 events now use real detect_objects() output (not ROI-cropped, full-frame inference) — 3/8 windows show real phone detections (0.41-0.52 confidence), 4/8 are confirmed real misses (matches known FN pattern from Day 4 sweep), 1/8 correctly empty (phone genuinely hidden). Other clips still placeholder pending P2's remaining runs.
+
 ## Limitations
 - Current results validated on synthetic/bootstrapped labels only.
 - Small labeled dataset (~80 events) risks overfitting — kept model shallow

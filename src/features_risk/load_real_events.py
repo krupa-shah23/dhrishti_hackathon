@@ -9,9 +9,18 @@ def load_p1_region_scores(csv_path):
 
 
 def load_p2_detections(json_path):
-    """P2's real detect_objects() output — confirm exact shape once she sends it."""
+    """P2's real detect_objects() output (JSON format) — confirm exact shape once she sends it."""
     with open(json_path) as f:
         return json.load(f)
+
+
+def load_p2_real_detections(csv_path):
+    """
+    P2's real detect_objects() output, CSV format (as actually sent for clip3).
+    Columns: event_id, window_start_s, window_end_s, class, confidence, note
+    """
+    df = pd.read_csv(csv_path)
+    return df.to_dict("records")
 
 
 def build_real_event(seat_id, start_time, end_time, video_id, camera_id,
@@ -52,7 +61,7 @@ def build_real_event(seat_id, start_time, end_time, video_id, camera_id,
 
 def attach_detections_to_events(events: list, detections: list, time_tolerance=1.0):
     """
-    Cross-reference P2's real detections onto P3 events by seat_id + time proximity.
+    Cross-reference P2's real JSON-style detections onto P3 events by seat_id + time proximity.
     Updates object_detected / object_confidence on each event in-place.
     """
     for event in events:
@@ -98,8 +107,54 @@ def build_events_from_p1_scores(region_scores, video_id, camera_id, exam_phase="
     return events
 
 
+def merge_real_detections_into_gt(gt_csv_path, detections_csv_path, video_id, output_path=None):
+    """
+    Overlays P2's real window-based detection results (CSV format) onto
+    ground_truth_labels.csv rows for matching video_id/time-window overlap.
+    Only updates rows with a real (non-empty) detection — confirmed-empty
+    windows are left as-is, not force-overwritten to None.
+    """
+    gt_df = pd.read_csv(gt_csv_path)
+    det_df = pd.read_csv(detections_csv_path)
+
+    if "object_detected" not in gt_df.columns:
+        gt_df["object_detected"] = None
+    if "object_confidence" not in gt_df.columns:
+        gt_df["object_confidence"] = 0.0
+
+    updated_count = 0
+    for _, det in det_df.iterrows():
+        cls = det.get("class")
+        if pd.isna(cls) or cls == "":
+            continue  # empty detection window — skip, don't overwrite GT with a false "confirmed empty"
+
+        overlap_mask = (
+            (gt_df["video_id"] == video_id) &
+            (gt_df["start_time"] < det["window_end_s"]) &
+            (gt_df["end_time"] > det["window_start_s"])
+        )
+        gt_df.loc[overlap_mask, "object_detected"] = cls
+        gt_df.loc[overlap_mask, "object_confidence"] = det["confidence"]
+        updated_count += overlap_mask.sum()
+
+    out_path = output_path or gt_csv_path
+    gt_df.to_csv(out_path, index=False)
+    print(f"Updated {updated_count} ground-truth rows with real detections from {video_id}")
+    return gt_df
+
+
 if __name__ == "__main__":
-    # Test once real files arrive from P1/P2
+    # --- P2's real clip3 detection output — actually available now ---
+    try:
+        merge_real_detections_into_gt(
+            "../../data/ground_truth_labels.csv",
+            "../../data/p3_detection_output_clip3.csv",
+            video_id="clip3",
+        )
+    except FileNotFoundError:
+        print("[load_real_events] p3_detection_output_clip3.csv not found in data/ — place it there first.")
+
+    # --- P1's real fused motion signal — still pending ---
     try:
         scores = load_p1_region_scores("../../data/p1_real_scores_clip1.csv")
         print(f"Loaded {len(scores)} real region scores")
@@ -113,7 +168,7 @@ if __name__ == "__main__":
             events = attach_detections_to_events(events, detections)
             print("Attached P2 detections to events")
         except FileNotFoundError:
-            print("[load_real_events] P2's real file not yet available — events built without object_detected.")
+            print("[load_real_events] P2's real JSON detections not yet available for clip1.")
 
         print("Sample event:", events[0] if events else "none")
 

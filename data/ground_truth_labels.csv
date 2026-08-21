@@ -1,51 +1,38 @@
-event_id,video_id,start_time,end_time,seat_id,label
-E0001,mock_clip_01,319.71,320.4,Desk9,Normal
-E0002,mock_clip_01,109.32,113.61,Desk1,Normal
-E0003,mock_clip_01,349.07,352.12,Desk5,Suspicious
-E0004,mock_clip_01,403.56,409.53000000000003,Desk18,Normal
-E0005,mock_clip_01,330.63,336.93,Desk3,Normal
-E0006,mock_clip_01,133.49,141.01000000000002,Desk3,Normal
-E0007,mock_clip_01,278.47,284.1,Desk2,Normal
-E0008,mock_clip_01,157.34,162.76,Desk13,Normal
-E0009,mock_clip_01,181.0,188.98,Desk5,Normal
-E0010,mock_clip_01,298.2,301.59,Desk20,Normal
-E0011,mock_clip_01,375.44,381.7,Desk11,Normal
-E0012,mock_clip_01,435.26,438.0,Desk17,Normal
-E0013,mock_clip_01,464.55,471.64,Desk10,Normal
-E0014,mock_clip_01,382.92,384.38,Desk16,Normal
-E0015,mock_clip_01,356.47,359.96000000000004,Desk12,Normal
-E0016,mock_clip_01,294.22,294.77000000000004,Desk2,Normal
-E0017,mock_clip_01,66.16,73.67999999999999,Desk19,Normal
-E0018,mock_clip_01,211.79,215.79,Desk2,Normal
-E0019,mock_clip_01,224.31,227.97,Desk9,Suspicious
-E0020,mock_clip_01,484.5,491.95,Desk8,Normal
-E0021,mock_clip_01,463.26,469.65,Desk10,Normal
-E0022,mock_clip_01,289.59,294.15999999999997,Desk11,Normal
-E0023,mock_clip_01,34.26,35.269999999999996,Desk8,Normal
-E0024,mock_clip_01,282.61,285.48,Desk9,Normal
-E0025,mock_clip_01,464.51,472.03,Desk1,Normal
-E0026,mock_clip_01,439.64,442.90999999999997,Desk6,Normal
-E0027,mock_clip_01,51.79,58.879999999999995,Desk9,Normal
-E0028,mock_clip_01,343.75,350.65,Desk17,Normal
-E0029,mock_clip_01,318.56,321.02,Desk15,Suspicious
-E0030,mock_clip_01,276.26,279.98,Desk2,Normal
-E0031,mock_clip_01,51.4,57.75,Desk14,Normal
-E0032,mock_clip_01,368.28,371.27,Desk14,Normal
-E0033,mock_clip_01,99.79,107.18,Desk12,Normal
-E0034,mock_clip_01,175.57,179.89,Desk18,Normal
-E0035,mock_clip_01,54.2,57.96,Desk11,Normal
-E0036,mock_clip_01,259.96,266.51,Desk7,Normal
-E0037,mock_clip_01,253.56,259.06,Desk11,Normal
-E0038,mock_clip_01,284.55,288.1,Desk1,Normal
-E0039,mock_clip_01,255.59,262.04,Desk6,Normal
-E0040,mock_clip_01,155.21,161.76000000000002,Desk5,Suspicious
-E0041,mock_clip_01,97.22,102.94,Desk16,Normal
-E0042,mock_clip_01,232.27,236.95000000000002,Desk4,Normal
-E0043,mock_clip_01,213.37,220.67000000000002,Desk15,Normal
-E0044,mock_clip_01,313.37,315.93,Desk3,Normal
-E0045,mock_clip_01,76.4,78.5,Desk14,Normal
-E0046,mock_clip_01,9.77,16.869999999999997,Desk19,Suspicious
-E0047,mock_clip_01,399.93,407.16,Desk16,Suspicious
-E0048,mock_clip_01,490.36,494.87,Desk13,Normal
-E0049,mock_clip_01,163.68,167.59,Desk11,Normal
-E0050,mock_clip_01,374.51,375.4,Desk12,Suspicious
+event_id,video_id,start_time,end_time,seat_id,label,notes,object_detected,object_confidence,avg_motion_intensity,peak_intensity,mog2_foreground_ratio,invigilator_excluded
+GT0001,clip1,0,5,Desk_unknown,Normal,calm before phone-out,,0.0,0.0,0.0,0.0,False
+GT0002,clip1,6,8,Desk_unknown,Suspicious,took out phone,,0.0,0.0,0.0,0.0,False
+GT0003,clip1,12,16,Desk_unknown,Suspicious,"copying, photo of screen",,0.0,0.0,0.0,0.0,False
+GT0004,clip1,16,50,Desk_unknown,Normal,calm between copying events,,0.0,0.0,0.0,0.0,False
+GT0005,clip1,51,55,Desk_unknown,Suspicious,"copying, photo of screen",,0.0,0.0,0.0,0.0,False
+GT0006,clip1,55,56,Desk_unknown,Suspicious,intervention after being seen copying,,0.0,0.0,0.0,0.0,False
+GT0007,clip1,68,70,Desk_unknown,Suspicious,accused left camera scene,,0.0,0.0,0.0,0.0,False
+GT0008,clip2,0,60,Desk_unknown,Normal,"setup phase, calm",,0.0,0.0,0.0,0.0,False
+GT0009,clip2,0,190,Desk_unknown,Normal,"setup phase, setup guy present",,0.0,0.0,0.0,0.0,False
+GT0010,clip2,190,200,Desk_unknown,Normal,setup guy leaves,,0.0,0.0,0.0,0.0,False
+GT0011,clip2,150,190,Desk_unknown,Normal,accused looking around before phone,,0.0,0.0,0.0,0.0,False
+GT0012,clip2,206,210,Desk_unknown,Normal,"takes out phone from pocket, no copying",,0.0,0.0,0.0,0.0,False
+GT0013,clip2,210,260,Desk_unknown,Normal,"after phone-out, no copying, calm",,0.0,0.0,0.0,0.0,False
+GT0014,clip3,0,2,Desk_unknown,Suspicious,hiding phone under tshirt,,0.0,0.0,0.0,0.0,False
+GT0015,clip3,10,55,Desk_unknown,Normal,"calm, phone still hidden, no visible action",,0.0,0.0,0.0,0.0,False
+GT0016,clip3,56,58,Desk_unknown,Suspicious,takes phone out from under tshirt,,0.0,0.0,0.0,0.0,False
+GT0017,clip3,65,67,Desk_unknown,Suspicious,"photo of screen, hides under desk",,0.0,0.0,0.0,0.0,False
+GT0018,clip3,81,89,Desk_unknown,Suspicious,"takes out phone, photo of screen",phone,0.484,0.0,0.0,0.0,False
+GT0019,clip3,93,100,Desk_unknown,Suspicious,"takes out phone, copying",phone,0.5186,0.0,0.0,0.0,False
+GT0020,clip3,107,109,Desk_unknown,Suspicious,photo of screen,phone,0.4147,0.0,0.0,0.0,False
+GT0021,clip3,124,126,Desk_unknown,Suspicious,"photo of screen, phone pointing at screen",,0.0,0.0,0.0,0.0,False
+GT0022,clip3,131,133,Desk_unknown,Suspicious,hides phone in pant,,0.0,0.0,0.0,0.0,False
+GT0023,clip3,133,251,Desk_unknown,Normal,"acts as studying, turning pages",,0.0,0.0,0.0,0.0,False
+GT0024,clip3,150,200,Desk_unknown,Normal,"acts as studying, calm stretch",,0.0,0.0,0.0,0.0,False
+GT0025,clip4,3,12,Desk_unknown,Suspicious,first pair talking,,0.0,1.3286754385964914,9.858,0.18370175438596492,True
+GT0026,clip4,15,70,Desk_unknown,Normal,calm between talking bursts,,0.0,0.44409909909909906,4.117,0.21050750750750746,True
+GT0027,clip4,72,87,Desk_unknown,Suspicious,"second pair talking, backs visible only",,0.0,0.8117204301075269,8.021,0.22778494623655915,False
+GT0028,clip4,97,102,Desk_unknown,Suspicious,"same guy talking again, looking at other screen",,0.0,1.1326818181818181,5.015,0.2575454545454546,False
+GT0029,clip4,105,135,Desk_unknown,Normal,calm before final talking burst,,0.0,0.23153825136612025,2.701,0.2143579234972678,False
+GT0030,clip4,140,143,Desk_unknown,Suspicious,talking again till end,,0.0,0.23302380952380955,2.445,0.16492857142857145,False
+GT0031,clip6,3600,3660,Desk_unknown,Normal,"calm stretch, ~1hr mark, no noted activity",,0.0,0.0,0.0,0.0,False
+GT0032,clip6,4260,4338,Desk_unknown,Suspicious,"girl looking around, then talking about exchanging seats",,0.0,0.0,0.0,0.0,False
+GT0033,clip6,4358,4391,Desk_unknown,Suspicious,moves pc ahead so he can see,,0.0,0.0,0.0,0.0,False
+GT0034,clip6,4391,4406,Desk_unknown,Suspicious,get up to exchange seats,,0.0,0.0,0.0,0.0,False
+GT0035,clip6,4406,4471,Desk_unknown,Normal,"guard checks in, intervention, told to leave",,0.0,0.0,0.0,0.0,False
+GT0036,clip7,0,24,Seat12,Normal,calm before copying starts,,0.0,0.0,0.0,0.0,False
+GT0037,clip7,26,82,Seat12,Suspicious,"copying from seat 12, seat number identified",,0.0,0.0,0.0,0.0,False

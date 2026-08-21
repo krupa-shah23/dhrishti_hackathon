@@ -27,7 +27,9 @@ def extract_features(event: dict, video_duration: float = None) -> dict:
         audio_energy = get_audio_energy(audio_path, event["start_time"], event["end_time"])
         onset_strength = get_onset_strength(audio_path, event["start_time"], event["end_time"])
 
-    object_flag = int(event.get("object_detected") is not None)
+    object_confidence = event.get("object_confidence", 0.0) or 0.0
+    object_flag = 1 if object_confidence >= 0.5 else 0
+    object_flag_soft = float(object_confidence)
     phase_start = 1 if phase == "start" else 0
     phase_end = 1 if phase == "end" else 0
 
@@ -41,6 +43,7 @@ def extract_features(event: dict, video_duration: float = None) -> dict:
         "audio_energy": audio_energy,
         "onset_strength": onset_strength,
         "object_flag": object_flag,
+        "object_flag_soft": object_flag_soft,
         "phase_start": phase_start,
         "phase_end": phase_end,
     }
