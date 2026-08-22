@@ -240,6 +240,7 @@ def full_pipeline(video_path: str, clip_name: str = "01_phone_use.mkv", step: in
             frame_index=frame_idx,
             pose_signals=result.get("pose_signals"),
             motion_intensity=result.get("motion_intensity"),
+            mog2_foreground_ratio=result.get("mog2_foreground_ratio"),
         )
         frame_idx += step
 

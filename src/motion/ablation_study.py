@@ -81,6 +81,7 @@ def run_pipeline_variant(
                 frame_index=frame_idx,
                 pose_signals=result.get("pose_signals"),
                 motion_intensity=result.get("motion_intensity"),
+                mog2_foreground_ratio=result.get("mog2_foreground_ratio"),
             )
         frame_idx += 1
 

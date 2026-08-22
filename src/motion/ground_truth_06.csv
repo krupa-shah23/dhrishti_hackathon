@@ -1,26 +1,26 @@
-clip_id,event_type,start_sec,end_sec,notes
-06_phone_use.mp4,phone_use,357.0,381.0,"takes phone from under desk, hidden from camera, copies"
-06_phone_use.mp4,phone_use,479.0,499.0,"takes phone out, hidden from camera, copies"
-06_phone_use.mp4,phone_use,663.0,677.0,"takes phone out, keeps"
-06_phone_use.mp4,phone_use,1181.0,1192.0,takes phone out
-06_phone_use.mp4,phone_use,1216.0,1232.0,"takes phone out, keeps"
-06_phone_use.mp4,phone_use,2259.0,2343.0,"takes phone out, keeps"
-06_phone_use.mp4,phone_use,2603.0,2613.0,phone use
-06_phone_use.mp4,phone_use,4875.0,4894.0,takes phone out
-06_phone_use.mp4,copying,5022.0,5029.0,takes photo of screen
-06_phone_use.mp4,phone_use,5047.0,5054.0,takes phone out
-06_phone_use.mp4,phone_use,5081.0,5090.0,takes phone out
-06_phone_use.mp4,phone_use,5107.0,5111.0,takes phone out
-06_phone_use.mp4,phone_use,5124.0,5127.0,takes phone out
-06_phone_use.mp4,phone_use,5147.0,5155.0,takes phone out
-06_phone_use.mp4,phone_use,5173.0,5179.0,takes phone out
-06_phone_use.mp4,phone_use,5198.0,5204.0,takes phone out
-06_phone_use.mp4,gaze_shift,5216.0,5220.0,looks at girl beside's paper
-06_phone_use.mp4,phone_use,5223.0,5227.0,takes phone out
-06_phone_use.mp4,gaze_shift,5270.0,5288.0,looks to the left
-06_phone_use.mp4,gaze_shift,5293.0,5325.0,keeps looking here and there
-06_phone_use.mp4,phone_use,5325.0,5329.0,takes phone out
-06_phone_use.mp4,phone_use,5351.0,5354.0,takes phone out
-06_phone_use.mp4,gaze_shift,5364.0,5380.0,keeps looking here and there
-06_phone_use.mp4,invigilator_movement,5380.0,5400.0,invigilator comes in
-06_phone_use.mp4,invigilator_movement,5406.0,5725.0,"invigilator comes in, extended presence"
+clip_id,event_type,seat_id,start_sec,end_sec,notes
+06_phone_use.mp4,phone_use,unknown,357.0,381.0,"takes phone from under desk, hidden from camera, copies"
+06_phone_use.mp4,phone_use,unknown,479.0,499.0,"takes phone out, hidden from camera, copies"
+06_phone_use.mp4,phone_use,unknown,663.0,677.0,"takes phone out, keeps"
+06_phone_use.mp4,phone_use,unknown,1181.0,1192.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,1216.0,1232.0,"takes phone out, keeps"
+06_phone_use.mp4,phone_use,unknown,2259.0,2343.0,"takes phone out, keeps"
+06_phone_use.mp4,phone_use,unknown,2603.0,2613.0,phone use
+06_phone_use.mp4,phone_use,unknown,4875.0,4894.0,takes phone out
+06_phone_use.mp4,copying,unknown,5022.0,5029.0,takes photo of screen
+06_phone_use.mp4,phone_use,unknown,5047.0,5054.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5081.0,5090.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5107.0,5111.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5124.0,5127.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5147.0,5155.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5173.0,5179.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5198.0,5204.0,takes phone out
+06_phone_use.mp4,gaze_shift,unknown,5216.0,5220.0,looks at girl beside's paper
+06_phone_use.mp4,phone_use,unknown,5223.0,5227.0,takes phone out
+06_phone_use.mp4,gaze_shift,unknown,5270.0,5288.0,looks to the left
+06_phone_use.mp4,gaze_shift,unknown,5293.0,5325.0,keeps looking here and there
+06_phone_use.mp4,phone_use,unknown,5325.0,5329.0,takes phone out
+06_phone_use.mp4,phone_use,unknown,5351.0,5354.0,takes phone out
+06_phone_use.mp4,gaze_shift,unknown,5364.0,5380.0,keeps looking here and there
+06_phone_use.mp4,invigilator_movement,unknown,5380.0,5400.0,invigilator comes in
+06_phone_use.mp4,invigilator_movement,unknown,5406.0,5725.0,"invigilator comes in, extended presence"

@@ -1,2 +1,2 @@
-clip_id,event_type,start_sec,end_sec,notes
-08_seat12_copying.mkv,paper_copying,26.0,82.0,"guy seen copying, seat number 12"
+clip_id,event_type,seat_id,start_sec,end_sec,notes
+08_seat12_copying.mkv,paper_copying,seat_12,26.0,82.0,"guy seen copying, seat number 12"

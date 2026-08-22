@@ -1,2 +1,2 @@
-clip_id,event_type,start_sec,end_sec,notes
-05_crowd_reception.mkv,uncertain,0.0,240.8,"crowd present, people moving; nature of event unconfirmed - uncertain"
+clip_id,event_type,seat_id,start_sec,end_sec,notes
+05_crowd_reception.mkv,uncertain,unknown,0.0,240.8,"crowd present, people moving; nature of event unconfirmed - uncertain"
