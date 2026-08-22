@@ -7,6 +7,7 @@ const personRoutes = require('./persons');
 const dashboardRoutes = require('./dashboard');
 const analysisRoutes = require('./analysis');
 const settingsRoutes = require('./settings');
+const internalRoutes = require('./internal');
 
 module.exports = {
   videoRoutes,
@@ -15,4 +16,5 @@ module.exports = {
   dashboardRoutes,
   analysisRoutes,
   settingsRoutes,
+  internalRoutes,
 };

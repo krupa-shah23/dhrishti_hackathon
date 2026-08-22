@@ -27,6 +27,10 @@ const bboxSchema = new mongoose.Schema(
 
 const eventSchema = new mongoose.Schema(
   {
+    // Idempotent upsert key from the ML pipeline (P2P3Bridge event_id).
+    // Deliberately NOT the Mongo _id -- ML cannot set _id, and retried
+    // /internal/events POSTs must upsert on this, not create duplicates.
+    mlEventId: { type: String, required: true, unique: true, index: true },
     videoId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Video',
@@ -46,6 +50,7 @@ const eventSchema = new mongoose.Schema(
     thumbnailPath: { type: String, default: null },
     explanation: { type: String, default: null },  // Gemini-generated or ML explanation
     objectDetected: { type: String, default: null },  // e.g. "mobile_phone"
+    objectConfidence: { type: Number, default: null },  // detector confidence for objectDetected, 0-1
     seatId: { type: String, default: null },
     colorTag: { type: String, default: null },  // for canvas overlay color
     bboxOverlay: [bboxSchema],  // bounding boxes for frontend canvas

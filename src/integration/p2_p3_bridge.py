@@ -269,6 +269,10 @@ class P2P3Bridge:
             "total_frames": end_frame - start_frame + 1,
             "object_detected": track_data["object_detected"],
             "object_confidence": best_detection["confidence"] if best_detection else None,
+            # Node's Event.objectDetected is a class-name String (e.g. "phone"),
+            # not a bool -- best_detection already carries "class" from
+            # detect_objects()'s per-frame metadata, just wasn't surfaced before.
+            "object_class": best_detection["class"] if best_detection else None,
             "is_invigilator": track_data["is_invigilator"],
             # activities: populated from pose/gesture signals accumulated during the track's lifetime
             "activities": list(track_data.get("pose_activities", [])),
