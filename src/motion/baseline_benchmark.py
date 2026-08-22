@@ -45,7 +45,7 @@ import cv2
 import numpy as np
 
 try:
-    from .motion import MotionEstimator
+    from .motion import MotionEstimator, fuse_motion_signal
     from .roi import get_rois as _get_rois
     def get_rois(*args, **kwargs):
         res = _get_rois(*args, **kwargs)
@@ -54,7 +54,7 @@ try:
         return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from .exclusion_regions import get_exclusion_regions
 except ImportError:
-    from motion import MotionEstimator
+    from motion import MotionEstimator, fuse_motion_signal
     from roi import get_rois as _get_rois
     def get_rois(*args, **kwargs):
         res = _get_rois(*args, **kwargs)
@@ -219,7 +219,8 @@ def variant_mog2_roi(estimator, frame, exclusion_regions=None):
 
 def variant_full_pipeline(estimator, frame, exclusion_regions=None):
     mag_map, mask = estimator.get_motion_mask(frame)  # estimator has use_stabilization=True
-    return get_rois(mask, exclusion_regions=exclusion_regions), mask
+    fused_mask = fuse_motion_signal(mag_map, mask)
+    return get_rois(fused_mask, exclusion_regions=exclusion_regions), fused_mask
 
 
 # ---------- benchmark runner ----------

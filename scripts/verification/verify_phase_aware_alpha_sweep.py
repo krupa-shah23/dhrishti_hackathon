@@ -54,7 +54,10 @@ def run_pipeline(cfg, steady_learning_rate):
     clip_name = cfg["clip_name"]
 
     cap = cv2.VideoCapture(video)
-    fps = cap.get(cv2.CAP_PROP_FPS) or 22.0
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        print(f"[WARN] Invalid FPS, falling back to 22.0 for {clip_name}")
+        fps = 22.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     run_frames = min(total_frames, cfg["max_frames"]) if cfg["max_frames"] else total_frames
 
@@ -119,7 +122,9 @@ def run_pipeline(cfg, steady_learning_rate):
         intensities = ev.get('motion_intensities', [0.0])
         avg_mi = float(np.mean(intensities)) if intensities else 0.0
         peak_mi = float(max(intensities)) if intensities else 0.0
-        ms = {'avg_motion_intensity': avg_mi, 'peak_intensity': peak_mi, 'mog2_foreground_ratio': 1.0}
+        mog2_ratios = ev.get('mog2_ratios', [0.0])
+        avg_mog2 = float(np.mean(mog2_ratios)) if mog2_ratios else 0.0
+        ms = {'avg_motion_intensity': avg_mi, 'peak_intensity': peak_mi, 'mog2_foreground_ratio': avg_mog2}
         enriched.append(enrich_event_with_motion_fields(ev, ms))
 
     confirmed = segment_events(enriched, motion_threshold=0.02, min_duration_sec=1.0)

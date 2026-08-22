@@ -218,8 +218,10 @@ def full_pipeline(video_path: str, clip_name: str = "01_phone_use.mkv", step: in
     if not cap.isOpened():
         return []
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-    pipeline = P1P2TrackerPipeline(clip_name=clip_name, min_area=300)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0  # Safe fallback per frame_stream.py
+    pipeline = P1P2TrackerPipeline(clip_name=clip_name, min_area=300, fps=fps)
     bridge = P2P3Bridge(missing_threshold=15, fps=fps)
 
     frame_idx = 0

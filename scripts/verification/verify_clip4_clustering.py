@@ -45,7 +45,10 @@ SEATS = GRID_CONFIGS[CAMERA_ID]["seats"]
 print(f"\nCamera12 seats ({len(SEATS)} total): {list(SEATS.keys())}")
 
 cap = cv2.VideoCapture(VIDEO)
-fps = cap.get(cv2.CAP_PROP_FPS) or 8.0
+fps = cap.get(cv2.CAP_PROP_FPS)
+if fps <= 0:
+    print("[WARN] Invalid FPS, falling back to 8.0 for this specific clip")
+    fps = 8.0
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -60,8 +63,10 @@ original_finalize = P2P3Bridge._finalize_track
 def _patched_finalize(self, track_id):
     track_data = self.active_tracks[track_id]
     intensities = list(track_data.get("motion_intensities", []))
+    mog2_ratios = list(track_data.get("mog2_ratios", []))
     original_finalize(self, track_id)
     self.completed_events[-1]["motion_intensities"] = intensities
+    self.completed_events[-1]["mog2_ratios"] = mog2_ratios
 P2P3Bridge._finalize_track = _patched_finalize
 
 bridge = P2P3Bridge(missing_threshold=30, fps=fps)
@@ -78,6 +83,7 @@ while True:
     mag_map, mask = motion_est.get_motion_mask(frame)
     fused = fuse_motion_signal(mag_map, mask)
     mi = _motion_intensity(fused)
+    mog2_ratio = float(np.count_nonzero(mask)) / mask.size if mask.size > 0 else 0.0
 
     # get_rois with camera_id for seat tagging
     tagged_boxes = get_rois(
@@ -114,7 +120,7 @@ while True:
         ft["seat_id"] = best_seat
 
     # Bridge
-    bridge.process_fused_tracks(fused_tracks, frame_index, motion_intensity=mi)
+    bridge.process_fused_tracks(fused_tracks, frame_index, motion_intensity=mi, mog2_foreground_ratio=mog2_ratio)
 
     frame_index += 1
     if frame_index % 100 == 0:
@@ -149,10 +155,14 @@ for ev in all_events:
     intensities = ev.get("motion_intensities", [0.0])
     avg_mi = float(np.mean(intensities)) if intensities else 0.0
     peak_mi = float(max(intensities)) if intensities else 0.0
+    
+    mog2_ratios = ev.get("mog2_ratios", [0.0])
+    avg_mog2 = float(np.mean(mog2_ratios)) if mog2_ratios else 0.0
+    
     motion_stats = {
         "avg_motion_intensity": avg_mi,
         "peak_intensity": peak_mi,
-        "mog2_foreground_ratio": 1.0 if intensities else 0.0,
+        "mog2_foreground_ratio": avg_mog2,
     }
     enriched.append(enrich_event_with_motion_fields(ev, motion_stats))
 

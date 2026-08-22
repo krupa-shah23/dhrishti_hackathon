@@ -27,7 +27,10 @@ CLIP_NAME = '08_seat12_copying.mkv'
 CAMERA_ID = 'Camera12'
 
 cap = cv2.VideoCapture(VIDEO)
-fps        = cap.get(cv2.CAP_PROP_FPS) or 25.0
+fps = cap.get(cv2.CAP_PROP_FPS)
+if fps <= 0:
+    print(f"[WARN] Invalid FPS, falling back to 25.0 for {CLIP_NAME}")
+    fps = 25.0
 total      = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 frame_w    = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_h    = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -92,7 +95,9 @@ for ev in raw_events:
     intensities = ev.get('motion_intensities', [0.0])
     avg_mi  = float(np.mean(intensities)) if intensities else 0.0
     peak_mi = float(max(intensities))     if intensities else 0.0
-    ms = {'avg_motion_intensity': avg_mi, 'peak_intensity': peak_mi, 'mog2_foreground_ratio': 1.0}
+    mog2_ratios = ev.get('mog2_ratios', [0.0])
+    avg_mog2 = float(np.mean(mog2_ratios)) if mog2_ratios else 0.0
+    ms = {'avg_motion_intensity': avg_mi, 'peak_intensity': peak_mi, 'mog2_foreground_ratio': avg_mog2}
     enriched.append(enrich_event_with_motion_fields(ev, ms))
 
 # --- Current gate (motion+duration only, no frame-level hysteresis) ---

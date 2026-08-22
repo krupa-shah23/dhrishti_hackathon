@@ -48,11 +48,17 @@ def run_pipeline_variant(
     if not cap.isOpened():
         return []
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0  # Safe fallback per frame_stream.py
     
-    # 1. Adaptive baseline toggle: min_area=300 (adaptive seat threshold) vs min_area=800 (flat threshold)
-    min_area = 800 if disable_adaptive_baseline else 300
-    pipeline = P1P2TrackerPipeline(clip_name=clip_name, min_area=min_area)
+    # 1. Adaptive baseline toggle is NOT CURRENTLY EVALUABLE
+    # baseline.py is unused; MOG2 handles background adaptation natively.
+    if disable_adaptive_baseline:
+        print("[WARN] Adaptive Baseline ablation is NOT CURRENTLY EVALUABLE. baseline.py is dead code.")
+    
+    min_area = 300
+    pipeline = P1P2TrackerPipeline(clip_name=clip_name, min_area=min_area, fps=fps)
     bridge = P2P3Bridge(missing_threshold=15, fps=fps)
 
     frame_idx = 0
