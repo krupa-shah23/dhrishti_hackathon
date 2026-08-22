@@ -27,9 +27,9 @@ def run_crash_recovery_test():
     partial_file = os.path.join(output_dir, "partial_log.json")
     result_file = os.path.join(output_dir, "crash_test_result.json")
 
-    video_path = os.path.join("data", "clg_dataset", "01_phone_use.mkv")
+    video_path = os.path.join("data", "drishti", "01_phone_use.mkv")
     if not os.path.exists(video_path):
-        video_path = os.path.join("data", "clg_dataset", "03_mobile_usage.mkv")
+        video_path = os.path.join("data", "drishti", "03_mobile_usage.mkv")
 
     print(f"[+] Starting logical crash-recovery test on {video_path}...", flush=True)
 

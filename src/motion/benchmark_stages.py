@@ -264,8 +264,8 @@ def full_pipeline(video_path: str, clip_name: str = "01_phone_use.mkv", step: in
 
 def run_benchmark():
     benchmarks = [
-        ("01_phone_use.mkv", os.path.join("data", "clg_dataset", "01_phone_use.mkv"), "01"),
-        ("03_mobile_usage.mkv", os.path.join("data", "clg_dataset", "03_mobile_usage.mkv"), "03"),
+        ("01_phone_use.mkv", os.path.join("data", "drishti", "01_phone_use.mkv"), "01"),
+        ("03_mobile_usage.mkv", os.path.join("data", "drishti", "03_mobile_usage.mkv"), "03"),
     ]
 
     variants = [

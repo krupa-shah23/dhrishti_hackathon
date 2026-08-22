@@ -120,8 +120,8 @@ def run_pipeline_variant(
 
 def run_ablation_study():
     benchmark_clips = [
-        ("01_phone_use.mkv", os.path.join("data", "clg_dataset", "01_phone_use.mkv"), "01", "Camera04"),
-        ("03_mobile_usage.mkv", os.path.join("data", "clg_dataset", "03_mobile_usage.mkv"), "03", "Camera12"),
+        ("01_phone_use.mkv", os.path.join("data", "drishti", "01_phone_use.mkv"), "01", "Camera04"),
+        ("03_mobile_usage.mkv", os.path.join("data", "drishti", "03_mobile_usage.mkv"), "03", "Camera12"),
     ]
 
     components = [

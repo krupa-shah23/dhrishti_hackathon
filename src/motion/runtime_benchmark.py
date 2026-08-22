@@ -38,7 +38,7 @@ def find_longest_clip():
             candidates = [
                 row.get("path"),
                 os.path.join("data", "drishti", clip_name),
-                os.path.join("data", "clg_dataset", clip_name),
+                os.path.join("data", "drishti", clip_name),
                 os.path.join("data", clip_name),
             ]
             found_path = None
@@ -58,7 +58,7 @@ def find_longest_clip():
 
     if not longest_clip:
         # Fallback search if manifest clips are not found at direct paths
-        search_dirs = [os.path.join("data", "clg_dataset"), "data"]
+        search_dirs = [os.path.join("data", "drishti"), "data"]
         for s_dir in search_dirs:
             if os.path.exists(s_dir):
                 for f in os.listdir(s_dir):

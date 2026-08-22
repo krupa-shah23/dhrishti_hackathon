@@ -96,7 +96,7 @@ def run_stress_test():
     print(f"[INFO] Logged skipped clips to {skipped_file}")
 
     # Step 2: Available clean clip (01_phone_use.mkv)
-    clean_clip_path = os.path.join("data", "clg_dataset", "01_phone_use.mkv")
+    clean_clip_path = os.path.join("data", "drishti", "01_phone_use.mkv")
     if not os.path.exists(clean_clip_path):
         print(f"[ERROR] Clean clip not found at {clean_clip_path}")
         return
