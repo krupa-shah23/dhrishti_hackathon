@@ -1,0 +1,6 @@
+clip_id,event_type,start_sec,end_sec,notes
+01_phone_use.mkv,phone_use,6.0,6.0,took out phone
+01_phone_use.mkv,copying,12.0,16.0,taking photo of screen
+01_phone_use.mkv,copying,51.0,51.0,taking photo of screen
+01_phone_use.mkv,intervention,55.0,55.0,"someone intervened, may have seen copying"
+01_phone_use.mkv,candidate_exit,68.0,68.0,accused left camera scene

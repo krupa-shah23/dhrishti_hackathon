@@ -1,0 +1,11 @@
+clip_id,event_type,start_sec,end_sec,notes
+03_mobile_usage.mkv,phone_hide,0.0,0.0,"phone hidden under tshirt touching pant, seated"
+03_mobile_usage.mkv,phone_use,56.0,56.0,takes phone out from under tshirt
+03_mobile_usage.mkv,copying,65.0,65.0,"takes photo of screen, hides under desk after"
+03_mobile_usage.mkv,phone_hide,65.0,81.0,"hides phone under desk, keeps looking there"
+03_mobile_usage.mkv,copying,81.0,89.0,takes photo of screen again
+03_mobile_usage.mkv,copying,93.0,100.0,takes phone to copy
+03_mobile_usage.mkv,copying,107.0,107.0,"takes phone, photo of screen"
+03_mobile_usage.mkv,copying,124.0,124.0,"takes phone, photo of screen, phone pointing at screen"
+03_mobile_usage.mkv,phone_hide,131.0,131.0,hides phone in pant
+03_mobile_usage.mkv,studying_pretense,131.0,251.0,pretends to study by turning pages till end of video
