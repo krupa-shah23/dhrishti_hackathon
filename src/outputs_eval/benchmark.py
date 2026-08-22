@@ -1,7 +1,7 @@
 """
 benchmark.py -- P4: Outputs, Evaluation & Integration
 Runs the video pipeline in 4 configurations and compares their
-Precision, Recall, F1, and processing speed.
+Precision, Recall, F1 (mask-level AND event-level), and processing speed.
 
 Configurations:
   1. frame_diff   -- Simple absolute frame differencing (baseline)
@@ -23,7 +23,9 @@ import numpy as np
 from src.outputs_eval.metrics import (
     MaskMetrics,
     update_mask_metrics,
-    print_mask_results,
+    Event,
+    match_events,
+    print_event_results,
 )
 
 
@@ -80,25 +82,94 @@ def _apply_roi_filter(mask: np.ndarray, min_area: int = 500) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Event-level: derive predicted events from a per-frame activity signal
+# ---------------------------------------------------------------------------
+
+def _frames_to_events(
+    active_flags: list[bool],
+    fps: float,
+    min_gap_s: float = 1.0,
+    min_duration_s: float = 0.5,
+) -> list[Event]:
+    """
+    Converts a per-frame boolean 'motion active' signal into a list of
+    Event(start, end) spans, merging gaps <= min_gap_s and dropping
+    events shorter than min_duration_s.
+    """
+    events: list[Event] = []
+    seg_start_idx = None
+    last_active_idx = None
+
+    for idx, active in enumerate(active_flags):
+        if active:
+            if seg_start_idx is None:
+                seg_start_idx = idx
+            elif last_active_idx is not None:
+                gap_s = (idx - last_active_idx) / fps
+                if gap_s > min_gap_s:
+                    # close previous segment, start new one
+                    start_t = seg_start_idx / fps
+                    end_t   = last_active_idx / fps
+                    if end_t - start_t >= min_duration_s:
+                        events.append(Event(start=start_t, end=end_t))
+                    seg_start_idx = idx
+            last_active_idx = idx
+
+    if seg_start_idx is not None and last_active_idx is not None:
+        start_t = seg_start_idx / fps
+        end_t   = last_active_idx / fps
+        if end_t - start_t >= min_duration_s:
+            events.append(Event(start=start_t, end=end_t))
+
+    return events
+
+
+def _load_gt_events(gt_csv_path: str, video_id: str | None = None) -> list[Event]:
+    """Loads ground_truth_events.csv, optionally filtered to one video_id.
+    Always excludes clip5 (unresolved, per project decision)."""
+    gt_events = []
+    with open(gt_csv_path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            vid = row.get("video_id", "")
+            if vid == "clip5":
+                continue
+            if video_id and vid != video_id:
+                continue
+            gt_events.append(Event(
+                start=float(row["start"]),
+                end=float(row["end"]),
+                label=row.get("event_type", ""),
+            ))
+    return gt_events
+
+
+# ---------------------------------------------------------------------------
 # Single-video benchmark runner
 # ---------------------------------------------------------------------------
 
 def benchmark_video(
     video_path: str,
+    video_id: str | None = None,
     gt_masks_dir: str | None = None,
+    gt_events_csv: str | None = None,
     min_area: int = 500,
+    activity_pixel_threshold: int = 500,
 ) -> dict[str, dict]:
     """
     Runs all 4 pipeline configurations on a video and collects metrics.
 
-    If gt_masks_dir is provided, loads CDnet2014-style ground truth
-    (gtXXXXXX.png files) and computes mask IoU / P / R / F1.
-    Otherwise only timing results are returned.
+    - If gt_masks_dir is provided: mask-level IoU/P/R/F1 (CDnet2014-style).
+    - If gt_events_csv is provided: event-level P/R/F1 (>=50% overlap rule)
+      against ground_truth_events.csv, using video_id to filter GT rows.
 
     Args:
-        video_path   (str): Path to input video.
-        gt_masks_dir (str): Optional path to folder of GT masks.
-        min_area     (int): Minimum contour area for ROI filtering.
+        video_path    (str): Path to input video.
+        video_id      (str): Video id matching ground_truth_events.csv rows.
+        gt_masks_dir  (str): Optional path to folder of GT masks.
+        gt_events_csv (str): Optional path to ground_truth_events.csv.
+        min_area      (int): Minimum contour area for ROI filtering.
+        activity_pixel_threshold (int): Foreground pixel count above which
+            a frame counts as "active" for event derivation.
 
     Returns:
         dict: mapping method_name -> result_dict
@@ -110,6 +181,7 @@ def benchmark_video(
         "full_pipeline": MOG2Subtractor(history=500, var_threshold=16),
     }
 
+    gt_events = _load_gt_events(gt_events_csv, video_id) if gt_events_csv else None
     results = {}
 
     for method_name, subtractor in configs.items():
@@ -120,6 +192,7 @@ def benchmark_video(
 
         fps       = cap.get(cv2.CAP_PROP_FPS) or 25.0
         metrics   = MaskMetrics()
+        active_flags: list[bool] = []
         frame_idx = 0
         t_start   = time.time()
 
@@ -135,7 +208,10 @@ def benchmark_video(
             if method_name in ("mog2_roi", "full_pipeline"):
                 mask = _apply_roi_filter(mask, min_area)
 
-            # If GT masks available, update metrics
+            # Track per-frame activity for event derivation
+            active_flags.append(int(np.count_nonzero(mask)) >= activity_pixel_threshold)
+
+            # If GT masks available, update mask metrics
             if gt_masks_dir:
                 gt_name = os.path.join(gt_masks_dir, f"gt{frame_idx + 1:06d}.png")
                 if os.path.exists(gt_name):
@@ -158,11 +234,19 @@ def benchmark_video(
             "proc_fps":     round(proc_fps, 2),
         }
         if metrics.num_frames > 0:
-            result.update(metrics.summary())
+            result.update({f"mask_{k}": v for k, v in metrics.summary().items()})
+
+        # Event-level F1 against ground_truth_events.csv
+        if gt_events is not None:
+            pred_events = _frames_to_events(active_flags, fps)
+            event_metrics = match_events(pred_events, gt_events, overlap_threshold=0.50)
+            print_event_results(event_metrics, label=f"{method_name} — Event F1")
+            result.update({f"event_{k}": v for k, v in event_metrics.summary().items()})
 
         results[method_name] = result
         print(f"[benchmark] {method_name:<20} | {proc_fps:.1f} fps | "
-              f"F1={result.get('f1', 'N/A')}")
+              f"mask_F1={result.get('mask_f1', 'N/A')} | "
+              f"event_F1={result.get('event_f1', 'N/A')}")
 
     return results
 
@@ -196,20 +280,28 @@ def save_benchmark_csv(results: dict[str, dict], output_path: str) -> None:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="P4 Benchmark Runner")
-    parser.add_argument("--video",  required=True, help="Path to input video")
-    parser.add_argument("--gt-dir", default=None,  help="Optional GT masks directory (CDnet2014)")
-    parser.add_argument("--out",    default="outputs/benchmark_table.csv")
+    parser = argparse.ArgumentParser(description="P4/P2b Benchmark Runner")
+    parser.add_argument("--video",     required=True, help="Path to input video")
+    parser.add_argument("--video-id",  default=None,  help="video_id matching ground_truth_events.csv")
+    parser.add_argument("--gt-dir",    default=None,  help="Optional GT masks directory (CDnet2014)")
+    parser.add_argument("--gt-events", default=None,  help="Optional path to ground_truth_events.csv")
+    parser.add_argument("--out",       default="outputs/benchmark_table.csv")
     args = parser.parse_args()
 
-    results = benchmark_video(args.video, gt_masks_dir=args.gt_dir)
+    results = benchmark_video(
+        args.video,
+        video_id=args.video_id,
+        gt_masks_dir=args.gt_dir,
+        gt_events_csv=args.gt_events,
+    )
     save_benchmark_csv(results, args.out)
 
     print("\n[benchmark] Summary:")
-    print(f"{'Method':<22} {'FPS':>6} {'F1':>8} {'Precision':>10} {'Recall':>8}")
-    print("-" * 60)
+    print(f"{'Method':<22} {'FPS':>6} {'MaskF1':>8} {'EventF1':>9} {'EventP':>8} {'EventR':>8}")
+    print("-" * 70)
     for r in results.values():
         print(f"{r['method']:<22} {r['proc_fps']:>6.1f} "
-              f"{r.get('f1','N/A'):>8}  "
-              f"{r.get('precision','N/A'):>10} "
-              f"{r.get('recall','N/A'):>8}")
+              f"{r.get('mask_f1','N/A'):>8}  "
+              f"{r.get('event_f1','N/A'):>9} "
+              f"{r.get('event_precision','N/A'):>8} "
+              f"{r.get('event_recall','N/A'):>8}")

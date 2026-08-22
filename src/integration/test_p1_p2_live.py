@@ -116,7 +116,6 @@ def test_live_pipeline_synthetic_sequence():
     print(f"Processing time: {elapsed:.4f} seconds")
     print(f"Approximate FPS: {fps:.1f} FPS")
     print("STATUS: PHASE 2 TEST PASS")
-    return True
 
 
 def test_process_frame_uses_native_input_resolution_no_implicit_resize():

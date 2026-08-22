@@ -222,6 +222,7 @@ class P1P2TrackerPipeline:
 
         # 3. Object Detection (Windowed + Crop-Slicing)
         detections = []
+<<<<<<< HEAD
         if frame is not None:
             active_tids = set()
             h, w = frame.shape[:2]
@@ -284,6 +285,19 @@ class P1P2TrackerPipeline:
                                 detections.append((abs_box, cls_name, conf))
                     except Exception as e:
                         print(f"[pipeline] Exception during detect_objects for tid {tid} at frame {frame_index}: {e}")
+=======
+        if frame is not None and boxes:
+            try:
+                exam_mode = getattr(self, "exam_mode", "CBT")
+                crops = [frame[int(y1):int(y2), int(x1):int(x2)]
+                         for (x1, y1, x2, y2) in boxes]
+                crops = [c for c in crops if c.size > 0]
+                if crops:
+                    detections = detect_objects(crops, exam_mode)
+            except Exception as e:
+                print(f"[pipeline] Exception during detect_objects at frame {frame_index}: {e}")
+                detections = []
+>>>>>>> origin/p2a-p2b-merge
 
         # 4. Fusion
         fused_tracks = fuse_track_detections(

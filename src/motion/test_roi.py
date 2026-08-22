@@ -465,7 +465,11 @@ def compare_stabilization(clip_name, folder_path):
         print(f"  Interpretation: large drop = shake-driven full-frame ROIs suppressed.")
 
 
+<<<<<<< HEAD
 def run_ignore_regions_check(clip_name, folder_path, regions):
+=======
+def check_ignore_regions(clip_name, folder_path, regions):
+>>>>>>> origin/p2a-p2b-merge
     """
     Sanity check for the invigilator ignore-region hook: runs one clip with
     a fixed region blanked out and confirms motion boxes never appear inside it.
@@ -514,7 +518,11 @@ if __name__ == "__main__":
     for clip_name in ["badminton", "boulevard", "sidewalk", "traffic"]:
         compare_stabilization(clip_name, CLIP_PATHS[clip_name])
 
+<<<<<<< HEAD
     run_ignore_regions_check("cubicle", CLIP_PATHS["cubicle"], [(0, 0, 150, 480)])
+=======
+    check_ignore_regions("cubicle", CLIP_PATHS["cubicle"], [(0, 0, 150, 480)])
+>>>>>>> origin/p2a-p2b-merge
 
     sweep_var_threshold("shanghai_01_0015", CLIP_PATHS["shanghai_01_0015"])
 

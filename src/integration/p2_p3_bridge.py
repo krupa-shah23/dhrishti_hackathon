@@ -95,7 +95,7 @@ class P2P3Bridge:
                     "start_frame": frame_index,
                     "end_frame": frame_index,
                     "last_seen_frame": frame_index,
-                    "object_detected": False,
+                    "object_detected": None,
                     "is_invigilator": False,
                     "metadata": [],
                     "pose_activities": [],  # accumulated pose/gesture signals for this track
@@ -200,6 +200,7 @@ class P2P3Bridge:
         start_frame = track_data["start_frame"]
         end_frame = track_data["end_frame"]
 
+<<<<<<< HEAD
         # --- Severity Scoring (§3.7) ---
         duration_sec = (end_frame - start_frame) / self.fps if self.fps > 0 else 0.0
 
@@ -251,6 +252,11 @@ class P2P3Bridge:
                     [s for s, c in seat_counts.items() if c == max_count],
                     key=lambda s: -seat_counts[s]
                 )
+=======
+        best_detection = None
+        if track_data["metadata"]:
+            best_detection = max(track_data["metadata"], key=lambda m: m["confidence"] or 0.0)
+>>>>>>> origin/p2a-p2b-merge
 
         event = {
             "event_id": track_data["event_id"],
@@ -264,6 +270,7 @@ class P2P3Bridge:
             "end_time": end_frame / self.fps,
             "total_frames": end_frame - start_frame + 1,
             "object_detected": track_data["object_detected"],
+            "object_confidence": best_detection["confidence"] if best_detection else None,
             "is_invigilator": track_data["is_invigilator"],
             # activities: populated from pose/gesture signals accumulated during the track's lifetime
             "activities": list(track_data.get("pose_activities", [])),

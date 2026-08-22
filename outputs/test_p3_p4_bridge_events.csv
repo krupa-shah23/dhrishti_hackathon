@@ -1,0 +1,2 @@
+timestamp,frame_index,roi_box,motion_score,audio_level,risk_score,confidence
+00:00:01.800,45,"(100,80,100,320)",10.416666666666668,12.4,0.73,0.87

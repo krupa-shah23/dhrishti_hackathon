@@ -21,10 +21,12 @@ Not part of the original 6 shared function contracts -- this is a P2-side
 helper called once per frame, after both track() and detect_objects()
 have been called for that frame.
 """
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+
+from .invigilator_filter import is_invigilator_track
 
 
 def _intersection_area(box_a: Tuple[float, float, float, float],
@@ -56,10 +58,88 @@ def _containment(det_box: Tuple[float, float, float, float],
     return _intersection_area(det_box, track_box) / det_area
 
 
+def _resolve_invigilator_flag(
+    t: Dict[str, Any],
+    track_histories: Optional[Dict[int, List[Tuple[float, float, float, float]]]] = None,
+    invigilator_flags: Optional[Dict[int, bool]] = None,
+    min_hits: int = 15,
+    min_net_displacement: float = 150.0,
+    min_path_length: float = 150.0,
+) -> bool:
+    """
+    Determines invigilator status for a track dictionary following strict precedence:
+      1. Explicit invigilator_flags dict: if provided and track_id is present, wins.
+      2. Computed from track histories: if track_histories dict (e.g. from
+         tracker.get_track_history(tid)) or t['history'] is available, evaluated
+         via is_invigilator_track().
+      3. Pre-existing 'invigilator_flag' key on the track dict.
+      4. Default fallback: False.
+    """
+    tid = t.get("track_id")
+
+    # Precedence 1: Explicit invigilator_flags dict
+    if invigilator_flags is not None and tid in invigilator_flags:
+        return bool(invigilator_flags[tid])
+
+    # Precedence 2: Computed from track histories
+    if track_histories is not None and tid in track_histories:
+        return is_invigilator_track(
+            track_histories[tid],
+            min_hits=min_hits,
+            min_net_displacement=min_net_displacement,
+            min_path_length=min_path_length,
+        )
+    if "history" in t and t["history"] is not None:
+        return is_invigilator_track(
+            t["history"],
+            min_hits=min_hits,
+            min_net_displacement=min_net_displacement,
+            min_path_length=min_path_length,
+        )
+
+    # Precedence 3: Pre-existing 'invigilator_flag' on track dict
+    if "invigilator_flag" in t and t["invigilator_flag"] is not None:
+        return bool(t["invigilator_flag"])
+
+    # Precedence 4: Default fallback
+    return False
+
+
+def merge_invigilator_flags(
+    fused_tracks: List[Dict[str, Any]],
+    track_histories: Optional[Dict[int, List[Tuple[float, float, float, float]]]] = None,
+    invigilator_flags: Optional[Dict[int, bool]] = None,
+    min_hits: int = 15,
+    min_net_displacement: float = 150.0,
+    min_path_length: float = 150.0,
+) -> List[Dict[str, Any]]:
+    """
+    Attaches/updates 'invigilator_flag': bool for each fused track dictionary in-place.
+    """
+    for ft in fused_tracks:
+        ft["invigilator_flag"] = _resolve_invigilator_flag(
+            ft,
+            track_histories=track_histories,
+            invigilator_flags=invigilator_flags,
+            min_hits=min_hits,
+            min_net_displacement=min_net_displacement,
+            min_path_length=min_path_length,
+        )
+    return fused_tracks
+
+
 def fuse_track_detections(
     tracks: List[Dict[str, Any]],
     detections: List[Tuple[Tuple[float, float, float, float], str, float]],
     containment_thresh: float = 0.5,
+    # NOTE: p1_p2_tracker.py currently sets invigilator_flag manually after calling
+    # fuse_track_detections() (precedence tier 3 / post-fusion update). In the future,
+    # P1 may simplify her call site by passing track_histories directly here.
+    track_histories: Optional[Dict[int, List[Tuple[float, float, float, float]]]] = None,
+    invigilator_flags: Optional[Dict[int, bool]] = None,
+    min_hits: int = 15,
+    min_net_displacement: float = 150.0,
+    min_path_length: float = 150.0,
 ) -> List[Dict[str, Any]]:
     """
     tracks:      output of track(boxes) for THIS frame
@@ -68,9 +148,12 @@ def fuse_track_detections(
                  [((x1,y1,x2,y2), class_name, conf), ...]
     containment_thresh: minimum fraction of the detection box that must
                  fall inside a track's box to count as belonging to it.
+    track_histories: optional mapping {track_id: [(x1,y1,x2,y2), ...]} from
+                 tracker.get_track_history(tid).
+    invigilator_flags: optional precomputed mapping {track_id: bool}.
 
-    Returns tracks with two extra keys merged in: "class", "confidence"
-    (both None if no detection matched). Uses Hungarian assignment to
+    Returns tracks with extra keys merged in: "class", "confidence",
+    and "invigilator_flag" (bool). Uses Hungarian assignment to
     find the globally optimal one-to-one track<->detection pairing by
     containment cost, so a track is never assigned a worse-matching
     detection just because a better-matching detection was processed
@@ -78,7 +161,20 @@ def fuse_track_detections(
     tie-break ordering artifact.
     """
     fused = [
-        {"track_id": t["track_id"], "box": t["box"], "class": None, "confidence": None}
+        {
+            "track_id": t["track_id"],
+            "box": t["box"],
+            "class": None,
+            "confidence": None,
+            "invigilator_flag": _resolve_invigilator_flag(
+                t,
+                track_histories=track_histories,
+                invigilator_flags=invigilator_flags,
+                min_hits=min_hits,
+                min_net_displacement=min_net_displacement,
+                min_path_length=min_path_length,
+            ),
+        }
         for t in tracks
     ]
 

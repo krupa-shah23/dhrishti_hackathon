@@ -79,7 +79,7 @@ def test_bridge_missing_detector():
     bridge.process_fused_tracks([{"track_id": 1, "box": (0, 0, 10, 10)}], 0)
     bridge.flush()
     event = bridge.get_completed_events()[0]
-    assert event["object_detected"] is False
+    assert event["object_detected"] is None
 
 def test_bridge_real_detector():
     bridge = P2P3Bridge()
@@ -133,5 +133,24 @@ def test_p3_compatibility():
     assert isinstance(score, float)
     assert 0.0 <= score <= 1.0
 
+
+def test_event_adapter_integration():
+    from src.integration.event_adapter import adapt_bridge_event_to_schema
+    from src.integration.fastapi_bridge.schemas import Event
+
+    bridge = P2P3Bridge()
+    bridge.process_fused_tracks([{"track_id": 1, "box": (0, 0, 10, 10), "class": "phone", "confidence": 0.85}], 0)
+    bridge.flush()
+    event = bridge.get_completed_events()[0]
+
+    schema_event = adapt_bridge_event_to_schema(event, video_id="clip_integration_1")
+    assert isinstance(schema_event, Event)
+    assert schema_event.video_id == "clip_integration_1"
+    assert schema_event.object_detected is True
+    assert schema_event.object_confidence == 0.85
+    assert schema_event.event_type == "unclassified"
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
+

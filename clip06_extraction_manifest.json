@@ -1,0 +1,152 @@
+[
+  {
+    "_comment": "CLIP 6 - phone hidden under desk (not visible in camera at all) while copying, 5:57-6:21 (357-381s). Object itself never visible on camera; this is a negative-for-object / motion-only window unless you want it as a 'concealment' pose reference.",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev1_hidden_copying_357",
+    "fps": 2, "start": 357, "end": 381
+  },
+  {
+    "_comment": "phone out, fully hidden, copying, 7:59-8:19 (479-499s). Same as ev1: object not visible on camera during this window.",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev2_hidden_copying_479",
+    "fps": 2, "start": 479, "end": 499
+  },
+  {
+    "_comment": "phone out at 11:03, kept away at 11:17 (663-677s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev3_takeout_663",
+    "fps": 2, "start": 663, "end": 677
+  },
+  {
+    "_comment": "phone out 19:41-19:52 (1181-1192s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev4_takeout_1181",
+    "fps": 2, "start": 1181, "end": 1192
+  },
+  {
+    "_comment": "phone out 20:16-20:32 (1216-1232s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev5_takeout_1216",
+    "fps": 2, "start": 1216, "end": 1232
+  },
+  {
+    "_comment": "phone out 37:39, kept away 39:03 (2259-2343s) - long duration (84s), likely spans multiple use/pause cycles within the same window",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev6_takeout_2259",
+    "fps": 2, "start": 2259, "end": 2343
+  },
+  {
+    "_comment": "phone out 43:23-43:33 (2603-2613s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev7_takeout_2603",
+    "fps": 2, "start": 2603, "end": 2613
+  },
+  {
+    "_comment": "phone out 1h21m15s-1h21m34s (4875-4894s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev8_takeout_4875",
+    "fps": 2, "start": 4875, "end": 4894
+  },
+  {
+    "_comment": "photo of screen, 1h23m42s-1h23m49s (5022-5029s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev9_photo_5022",
+    "fps": 2, "start": 5022, "end": 5029
+  },
+  {
+    "_comment": "DUPLICATE FLAG: original summary said 1h24m0s-1h24m14s (5040-5054); the itemized burst list separately gives 1h24m07s-1h24m14s (5047-5054), same end time, later start. Using the wider 5040-5054 window here to be safe - verify which start is correct before relabeling.",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev10_photo_5040",
+    "fps": 2, "start": 5040, "end": 5054
+  },
+  {
+    "_comment": "photo of screen, 1h24m41s-1h24m50s (5081-5090s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev11_photo_5081",
+    "fps": 2, "start": 5081, "end": 5090
+  },
+  {
+    "_comment": "photo of screen, 1h25m07s-1h25m11s (5107-5111s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev12_photo_5107",
+    "fps": 2, "start": 5107, "end": 5111
+  },
+  {
+    "_comment": "photo of screen, 1h25m24s-1h25m27s (5124-5127s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev13_photo_5124",
+    "fps": 2, "start": 5124, "end": 5127
+  },
+  {
+    "_comment": "photo of screen, 1h25m47s-1h25m55s (5147-5155s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev14_photo_5147",
+    "fps": 2, "start": 5147, "end": 5155
+  },
+  {
+    "_comment": "photo of screen, 1h26m13s-1h26m19s (5173-5179s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev15_photo_5173",
+    "fps": 2, "start": 5173, "end": 5179
+  },
+  {
+    "_comment": "photo of screen, 1h26m38s-1h26m44s (5198-5204s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev16_photo_5198",
+    "fps": 2, "start": 5198, "end": 5204
+  },
+  {
+    "_comment": "looks at neighbor's paper (not a phone event - copying/glance activity), 1h26m56s-1h27m00s (5216-5220s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev17_glance_neighbor_5216",
+    "fps": 2, "start": 5216, "end": 5220
+  },
+  {
+    "_comment": "photo of screen, 1h27m03s-1h27m07s (5223-5227s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev18_photo_5223",
+    "fps": 2, "start": 5223, "end": 5227
+  },
+  {
+    "_comment": "looks left, no phone visible - candidate gaze/head-turn only, 1h27m50s-1h28m08s (5270-5288s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev19_gaze_left_5270",
+    "fps": 2, "start": 5270, "end": 5288
+  },
+  {
+    "_comment": "keeps looking here and there, no phone visible, 1h28m13s-1h28m45s (5293-5325s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev20_gaze_scanning_5293",
+    "fps": 2, "start": 5293, "end": 5325
+  },
+  {
+    "_comment": "photo of screen, 1h28m45s-1h28m49s (5325-5329s) - immediately follows ev20's scanning window",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev21_photo_5325",
+    "fps": 2, "start": 5325, "end": 5329
+  },
+  {
+    "_comment": "photo of screen, 1h29m11s-1h29m14s (5351-5354s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev22_photo_5351",
+    "fps": 2, "start": 5351, "end": 5354
+  },
+  {
+    "_comment": "keeps looking here and there, no phone visible, 1h29m24s-1h29m40s (5364-5380s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev23_gaze_scanning_5364",
+    "fps": 2, "start": 5364, "end": 5380
+  },
+  {
+    "_comment": "invigilator enters near desk - useful negative/invigilator-exclusion training example, 1h29m40s-1h30m00s (5380-5400s)",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev24_invigilator_5380",
+    "fps": 2, "start": 5380, "end": 5400
+  },
+  {
+    "_comment": "invigilator present/intervention, longer duration (5m19s), 1h30m06s-1h35m25s (5406-5725s) - sparser sampling since this is a long static-ish invigilator window, not a quick object event",
+    "video": "data/college_dataset/During the exam, the candidates exchanged their seats with each other..mp4",
+    "out": "data/frames_raw/clip06_ev25_invigilator_5406",
+    "fps": 0.5, "start": 5406, "end": 5725
+  }
+]
