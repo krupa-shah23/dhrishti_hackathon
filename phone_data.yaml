@@ -1,0 +1,13 @@
+train: data/roboflow_export/train/images
+val: data/roboflow_export/valid/images
+test: data/roboflow_export/test/images
+
+nc: 2
+names: ['paper-chit', 'phone']
+
+roboflow:
+  workspace: krupa-shah-9mij4
+  project: drishti-phone-chit
+  version: 1
+  license: Private
+  url: https://app.roboflow.com/krupa-shah-9mij4/drishti-phone-chit/1

@@ -18,6 +18,7 @@ import numpy as np
 
 from src.motion.baseline import (
     calibrate_baseline,
+    collect_warmup_motion_masks,
     compute_calib_window,
     _seat_intensity,
     _robust_stats,
@@ -55,13 +56,28 @@ def _make_motion_video(path: str, fps: float, n_frames: int,
     out.release()
 
 
-REAL_VIDEO = Path("data/drishti/04.CCTV Candidate Talking.mkv")
+REAL_VIDEO = Path("data/drishti/04_candidate_talking.mkv")
 CAMERA_ID = "Camera12"
 
 
 # ── test cases ──────────────────────────────────────────────────────────────
 
 class TestComputeCalibWindow(unittest.TestCase):
+    def test_compute_calib_window(self):
+        # 140s clip -> 10% is 14s. Floor is 60s.
+        self.assertEqual(compute_calib_window(140.0), 60.0)
+        
+        # 800s clip -> 10% is 80s. Fits in [60, 300].
+        self.assertEqual(compute_calib_window(800.0), 80.0)
+        
+        # 2 hour clip = 7200s -> 10% is 720s. Ceiling is 300s.
+        self.assertEqual(compute_calib_window(7200.0), 300.0)
+        
+        # 600s clip -> 10% is 60s. Floor is 60s.
+        self.assertEqual(compute_calib_window(600.0), 60.0)
+        
+        # 3000s clip -> 10% is 300s. Ceiling is 300s.
+        self.assertEqual(compute_calib_window(3000.0), 300.0)
 
     def test_short_video_gives_60s(self):
         # 143.12 s  →  10% = 14.31 < 60  →  clamped to 60
@@ -142,14 +158,16 @@ class TestCalibrateBaselineSynthetic(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_every_seat_receives_stats(self):
-        result = calibrate_baseline(self.video_path, CAMERA_ID,
-                                    calib_window_sec=60.0)
-        expected_seats = set(GRID_CONFIGS[CAMERA_ID]["seats"].keys())
+        masks, grid = collect_warmup_motion_masks(self.video_path, CAMERA_ID,
+                                                  calib_window_sec=60.0)
+        result = calibrate_baseline(masks, grid)
+        expected_seats = set(GRID_CONFIGS["Camera12"]["seats"].keys())
         self.assertEqual(set(result.keys()), expected_seats)
 
     def test_no_global_baseline(self):
-        result = calibrate_baseline(self.video_path, CAMERA_ID,
-                                    calib_window_sec=60.0)
+        masks, grid = collect_warmup_motion_masks(self.video_path, CAMERA_ID,
+                                                  calib_window_sec=60.0)
+        result = calibrate_baseline(masks, grid)
         for seat_id, stats in result.items():
             self.assertIsInstance(stats, tuple)
             self.assertEqual(len(stats), 2)
@@ -157,22 +175,59 @@ class TestCalibrateBaselineSynthetic(unittest.TestCase):
                             f"Unexpected seat key: {seat_id}")
 
     def test_results_are_finite(self):
-        result = calibrate_baseline(self.video_path, CAMERA_ID,
-                                    calib_window_sec=60.0)
+        masks, grid = collect_warmup_motion_masks(self.video_path, CAMERA_ID,
+                                                  calib_window_sec=60.0)
+        result = calibrate_baseline(masks, grid)
         for seat_id, (mean, std) in result.items():
             self.assertTrue(math.isfinite(mean),
                             f"{seat_id} mean is not finite")
             self.assertTrue(math.isfinite(std),
                             f"{seat_id} std is not finite")
 
-    def test_results_are_deterministic(self):
-        r1 = calibrate_baseline(self.video_path, CAMERA_ID,
-                                 calib_window_sec=60.0, sample_rate=1.0)
-        r2 = calibrate_baseline(self.video_path, CAMERA_ID,
-                                 calib_window_sec=60.0, sample_rate=1.0)
+    def test_orchestrator_is_deterministic(self):
+        m1, g1 = collect_warmup_motion_masks(self.video_path, CAMERA_ID,
+                                             calib_window_sec=60.0, sample_rate=1.0)
+        r1 = calibrate_baseline(m1, g1)
+
+        m2, g2 = collect_warmup_motion_masks(self.video_path, CAMERA_ID,
+                                             calib_window_sec=60.0, sample_rate=1.0)
+        r2 = calibrate_baseline(m2, g2)
+        
         for seat_id in r1:
             self.assertAlmostEqual(r1[seat_id][0], r2[seat_id][0], places=10)
             self.assertAlmostEqual(r1[seat_id][1], r2[seat_id][1], places=10)
+
+    def test_calibrate_baseline_pure_no_io(self):
+        """
+        Pure synthetic-array test proving calibrate_baseline performs no I/O,
+        using hand-built np.ndarray masks and a mock grid.
+        """
+        mock_grid = {
+            "seats": {
+                "seat_1": (0, 0, 100, 100),
+                "seat_2": (100, 100, 200, 200)
+            }
+        }
+        # Two masks: first is empty, second is full
+        mask1 = np.zeros((200, 200), dtype=np.uint8)
+        mask2 = np.full((200, 200), 255, dtype=np.uint8)
+        
+        warmup_frames = [mask1, mask2]
+        
+        # Result should be perfectly deterministic, no file access
+        r1 = calibrate_baseline(warmup_frames, mock_grid)
+        r2 = calibrate_baseline(warmup_frames, mock_grid)
+        
+        self.assertEqual(r1, r2)
+        self.assertIn("seat_1", r1)
+        self.assertIn("seat_2", r1)
+        
+        self.assertAlmostEqual(r1["seat_1"][0], 0.5)
+
+    def test_calibrate_baseline_pure_empty_grid(self):
+        """Pure test: empty grid dictionary returns empty result."""
+        result = calibrate_baseline([np.zeros((10,10))], {})
+        self.assertEqual(result, {})
 
     def test_outlier_movement_does_not_dominate(self):
         """
@@ -183,21 +238,24 @@ class TestCalibrateBaselineSynthetic(unittest.TestCase):
         _make_motion_video(motion_path, fps=8.0, n_frames=80)
 
         # compute robust
-        result_robust = calibrate_baseline(motion_path, CAMERA_ID,
-                                             calib_window_sec=60.0,
-                                             sample_rate=1.0)
+        masks, grid = collect_warmup_motion_masks(motion_path, CAMERA_ID,
+                                                  calib_window_sec=60.0,
+                                                  sample_rate=1.0)
+        result_robust = calibrate_baseline(masks, grid)
         
         # for seat_60 (the flash region) robust mean should be approx 0 (since mostly dark)
         self.assertLessEqual(result_robust["seat_60"][0], 0.05)
 
 
     def test_empty_video_path_returns_empty(self):
-        result = calibrate_baseline("nonexistent_video.mp4", CAMERA_ID)
-        self.assertEqual(result, {})
+        masks, grid = collect_warmup_motion_masks("nonexistent_video.mp4", CAMERA_ID)
+        self.assertEqual(masks, [])
+        self.assertEqual(grid, {})
 
     def test_unknown_camera_returns_empty(self):
-        result = calibrate_baseline(self.video_path, "UnknownCamera")
-        self.assertEqual(result, {})
+        masks, grid = collect_warmup_motion_masks(self.video_path, "UnknownCamera")
+        self.assertEqual(masks, [])
+        self.assertEqual(grid, {})
 
 
 class TestCalibrateBaselineRealVideo(unittest.TestCase):
@@ -209,13 +267,16 @@ class TestCalibrateBaselineRealVideo(unittest.TestCase):
         cap = _cv2.VideoCapture(str(REAL_VIDEO))
         source_fps = cap.get(_cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(_cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(_cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
 
         self.assertAlmostEqual(source_fps, 8.0, places=1)
         duration = frame_count / source_fps
         self.assertAlmostEqual(duration, 143.12, delta=1.0)
 
-        result = calibrate_baseline(str(REAL_VIDEO), CAMERA_ID)
+        masks, grid = collect_warmup_motion_masks(str(REAL_VIDEO), CAMERA_ID)
+        result = calibrate_baseline(masks, grid)
 
         expected_seats = set(GRID_CONFIGS[CAMERA_ID]["seats"].keys())
         self.assertEqual(set(result.keys()), expected_seats)

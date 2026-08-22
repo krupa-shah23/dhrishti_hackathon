@@ -33,7 +33,12 @@ import cv2
 import numpy as np
 
 from motion import MotionEstimator
-from roi import get_rois
+from roi import get_rois as _get_rois
+def get_rois(*args, **kwargs):
+    res = _get_rois(*args, **kwargs)
+    if kwargs.get('return_cleaned'):
+        return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+    return [b['bbox'] if isinstance(b, dict) else b for b in res]
 
 GT_MOTION = 255
 GT_DONTCARE = 170  # unknown -- excluded from scoring
@@ -123,7 +128,7 @@ def run_clip(clip_dir, use_stabilization):
         if i < start or i > end:
             continue  # CDNet excludes bootstrap/init frames per clip
 
-        mask = estimator.get_motion_mask(frame)  # 0/255; stabilization applied internally if enabled
+        mag_map, mask = estimator.get_motion_mask(frame)  # 0/255; stabilization applied internally if enabled
         mask_bin = (mask > 127).astype(np.uint8)
 
         tp, fp, fn, _ = accumulate_confusion(mask_bin, gt, roi_mask)

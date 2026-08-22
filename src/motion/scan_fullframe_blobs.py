@@ -16,7 +16,12 @@ import argparse
 import cv2
 
 from motion import MotionEstimator
-from roi import get_rois
+from roi import get_rois as _get_rois
+def get_rois(*args, **kwargs):
+    res = _get_rois(*args, **kwargs)
+    if kwargs.get('return_cleaned'):
+        return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+    return [b['bbox'] if isinstance(b, dict) else b for b in res]
 
 FRACTION_THRESHOLD = 0.6  # matches MAX_AREA_FRACTION in roi.py
 
@@ -39,7 +44,7 @@ def scan(video_path, min_area=1500):
         h, w = frame.shape[:2]
         frame_area = h * w
 
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         boxes = get_rois(mask, min_area=min_area)
 
         hit = False

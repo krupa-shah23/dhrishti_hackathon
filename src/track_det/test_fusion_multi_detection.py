@@ -35,7 +35,7 @@ def main():
     # (phone in one hand, chit-like paper in the other), same frame.
     track_box = (100, 100, 400, 400)
     phone_det = ((150, 150, 200, 200), "phone", 0.90)
-    chit_det = ((300, 300, 350, 350), "chit", 0.85)
+    chit_det = ((300, 300, 350, 350), "paper-chit", 0.85)
 
     result = run_case(
         "Two legit detections, one track box",
@@ -70,7 +70,7 @@ def main():
     # to check whether confidence or list-order decides the winner.
     print(f"\n=== Tiebreak check: does confidence or order decide the winner? ===")
     phone_det_lower_conf = ((150, 150, 200, 200), "phone", 0.60)
-    chit_det_higher_conf = ((300, 300, 350, 350), "chit", 0.95)
+    chit_det_higher_conf = ((300, 300, 350, 350), "paper-chit", 0.95)
     result = fuse_track_detections(
         [make_track(1, (100, 100, 400, 400))],
         [phone_det_lower_conf, chit_det_higher_conf],

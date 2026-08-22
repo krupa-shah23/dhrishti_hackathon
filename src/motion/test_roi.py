@@ -16,11 +16,21 @@ import numpy as np
 
 try:
     from .motion import MotionEstimator
-    from .roi import get_rois, draw_rois
+    from .roi import get_rois as _get_rois, draw_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from .exclusion_regions import get_exclusion_regions
 except ImportError:
     from motion import MotionEstimator
-    from roi import get_rois, draw_rois
+    from roi import get_rois as _get_rois, draw_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from exclusion_regions import get_exclusion_regions
 
 
@@ -131,21 +141,28 @@ def run_roi_check(clip_name, folder_path, exclusion_regions=None, suffix="",
 
         frame_source = load_frames_from_video(folder_path) if is_video else load_frames_from_folder(folder_path)
         for i, (fname, original_frame) in enumerate(frame_source):
-            mask = estimator.get_motion_mask(original_frame)
+            mag_map, mask = estimator.get_motion_mask(original_frame)
+            
+            from motion import fuse_motion_signal
+            fused_mask = fuse_motion_signal(mag_map, mask)
+            
             save_sample = (i % SAMPLE_EVERY_N_FRAMES == 0)
 
             if use_stabilization:
                 shifts.append(estimator.last_shift)
 
             if save_sample:
-                boxes, cleaned = get_rois(mask, min_area=min_area, return_cleaned=True,
+                boxes, cleaned = get_rois(fused_mask, min_area=min_area, return_cleaned=True,
                                           exclusion_regions=exclusion_regions)
             else:
-                boxes = get_rois(mask, min_area=min_area, exclusion_regions=exclusion_regions)
+                boxes = get_rois(fused_mask, min_area=min_area, exclusion_regions=exclusion_regions)
                 cleaned = None
 
             total_boxes += len(boxes)
             frame_count += 1
+            
+            if frame_count % 100 == 0:
+                print(f"    Processed {frame_count} frames...")
 
             for (x1, y1, x2, y2) in boxes:
                 writer.writerow([i, x1, y1, x2, y2])
@@ -334,7 +351,7 @@ def test_ignore_regions(clip_name, folder_path, regions):
 
 
     for i, (fname, frame) in enumerate(load_frames_from_folder(folder_path)):
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         boxes = get_rois(mask)
         frame_count += 1
         for (x1, y1, x2, y2) in boxes:
@@ -392,3 +409,14 @@ if __name__ == "__main__":
                           exclusion_regions=get_exclusion_regions(name))
         else:
             run_roi_check(name, path)
+    def test_roi_seat_id_tagging(self):
+        import numpy as np
+        from src.motion.roi import _get_rois
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        # Create a rect inside seat_61 (Camera12 grid)
+        mask[300:400, 150:250] = 255
+        
+        boxes = _get_rois(mask, camera_id='Camera12', min_area=100)
+        self.assertEqual(len(boxes), 1)
+        self.assertEqual(boxes[0]['seat_id'], 'seat_61')
+        self.assertTrue('bbox' in boxes[0])

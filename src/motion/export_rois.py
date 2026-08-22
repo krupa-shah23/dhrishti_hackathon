@@ -5,6 +5,9 @@ Owner: P1 - Motion & ROI
 Exports per-frame ROI detections to CSV for downstream integration
 (e.g. P2's tracker consuming boxes directly rather than via the live pipeline).
 
+NOTE: This script operates independently at native resolution (via cv2.imread),
+bypassing the live pipeline's 480p stream in get_frame_stream. Do not "fix" this.
+
 Uses the existing pipeline exactly as-is, via the shared contract functions:
     get_motion_mask(frame) -> mask      (motion.py)
     get_rois(mask) -> [(x1, y1, x2, y2), ...]   (roi.py)
@@ -31,8 +34,12 @@ import os
 
 import cv2
 
-from motion import get_motion_mask
-from roi import get_rois
+from roi import get_rois as _get_rois
+def get_rois(*args, **kwargs):
+    res = _get_rois(*args, **kwargs)
+    if kwargs.get('return_cleaned'):
+        return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+    return [b['bbox'] if isinstance(b, dict) else b for b in res]
 from exclusion_regions import get_exclusion_regions
 
 DEFAULT_OUT = os.path.join(os.path.dirname(__file__), "..", "p1_rois.csv")
@@ -67,6 +74,9 @@ def export_rois(input_dir, out_path):
     frame_index = 0
     total_rois = 0
 
+    from motion import MotionEstimator
+    estimator = MotionEstimator()
+
     with open(out_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["frame_index", "x1", "y1", "x2", "y2"])
@@ -79,8 +89,10 @@ def export_rois(input_dir, out_path):
             if width is None:
                 height, width = frame.shape[:2]
 
-            mask = get_motion_mask(frame)
-            boxes = get_rois(mask, exclusion_regions=exclusion_regions)
+            mag_map, mask = estimator.get_motion_mask(frame)
+            from motion import fuse_motion_signal
+            fused_mask = fuse_motion_signal(mag_map, mask)
+            boxes = get_rois(fused_mask, min_area=1500, exclusion_regions=exclusion_regions)
 
             for (x1, y1, x2, y2) in boxes:
                 writer.writerow([frame_index, x1, y1, x2, y2])

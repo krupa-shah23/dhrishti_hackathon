@@ -51,46 +51,61 @@ def get_exclusion_regions(clip_name: str) -> list[tuple[int, int, int, int]]:
 
 # --- Camera-specific Exclusion Masks ---
 
+# Mask coordinates are measured separately per resolution.
+# Keys are (camera_id, (width, height)).
 CAMERA_CONFIGS = {
-    "Camera12": {
-        "resolution": (640, 480),
-        "regions": [
-            # Timestamp overlay (top-left)
-            (30, 0, 295, 125),
-            # Camera ID overlay (bottom-right)
-            (410, 355, 525, 450)
-        ]
-    }
+    ("Camera12", (640, 480)): [
+        # Timestamp overlay (top-left)
+        (30, 0, 295, 125),
+        # Camera ID overlay (bottom-right)
+        (410, 355, 525, 450)
+    ],
+    ("Camera04", (1280, 720)): [
+        # Top overlay (Date/Time)
+        (20, 30, 550, 100),
+        # Bottom overlay (Camera Label)
+        (880, 620, 1150, 700)
+    ],
+    ("Camera12", (1280, 720)): [
+        # Top-left overlay (Date/Time)
+        (43, 0, 750, 115),
+        # Bottom-right overlay (Camera Label)
+        (951, 607, 1227, 676),
+        # Bottom-right small timestamp overlay (just below label)
+        (1150, 696, 1280, 720)
+    ],
+    ("AH003", (1280, 720)): [
+        # Top-left overlay (Timestamp)
+        (10, 30, 320, 80),
+        # Bottom-right overlay (Label + '9')
+        (900, 620, 1050, 670)
+    ],
+    ("DAHISAR1", (1280, 720)): [
+        # Exclude invigilator desk (seat_7) from ROI detection
+        # to prevent stationary high-motion from generating false incident events.
+        (840, 160, 1110, 530)
+    ]
 }
 
 def get_exclusion_mask(camera_id: str, width: int, height: int) -> np.ndarray:
     """
-    Returns a binary mask (255 = valid, 0 = excluded) for the given camera.
-    Unknown cameras return an all-valid mask.
-    Handles resolution matching/scaling safely.
+    Returns a binary mask (255 = valid, 0 = excluded) for the given camera and resolution.
+    Unknown cameras or resolutions return an all-valid mask.
     """
     mask = np.full((height, width), 255, dtype=np.uint8)
     
-    if camera_id not in CAMERA_CONFIGS:
+    key = (camera_id, (width, height))
+    if key not in CAMERA_CONFIGS:
         return mask
         
-    config = CAMERA_CONFIGS[camera_id]
-    cfg_w, cfg_h = config["resolution"]
-    
-    scale_x = width / cfg_w if cfg_w > 0 else 1.0
-    scale_y = height / cfg_h if cfg_h > 0 else 1.0
+    regions = CAMERA_CONFIGS[key]
         
-    for (x1, y1, x2, y2) in config["regions"]:
-        sx1 = int(x1 * scale_x)
-        sy1 = int(y1 * scale_y)
-        sx2 = int(x2 * scale_x)
-        sy2 = int(y2 * scale_y)
-        
+    for (x1, y1, x2, y2) in regions:
         # clamp to boundaries
-        sx1, sy1 = max(0, sx1), max(0, sy1)
-        sx2, sy2 = min(width, sx2), min(height, sy2)
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(width, x2), min(height, y2)
         
-        if sx1 < sx2 and sy1 < sy2:
-            mask[sy1:sy2, sx1:sx2] = 0
+        if x1 < x2 and y1 < y2:
+            mask[y1:y2, x1:x2] = 0
             
     return mask

@@ -46,11 +46,21 @@ import numpy as np
 
 try:
     from .motion import MotionEstimator
-    from .roi import get_rois
+    from .roi import get_rois as _get_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from .exclusion_regions import get_exclusion_regions
 except ImportError:
     from motion import MotionEstimator
-    from roi import get_rois
+    from roi import get_rois as _get_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from exclusion_regions import get_exclusion_regions
     
 IOU_THRESHOLD = 0.3
@@ -198,16 +208,17 @@ def variant_frame_diff(prev_frame, frame, threshold=25):
 
 
 def variant_mog2_only(estimator, frame):
-    return estimator.get_motion_mask(frame)
+    _, mask = estimator.get_motion_mask(frame)
+    return mask
 
 
 def variant_mog2_roi(estimator, frame, exclusion_regions=None):
-    mask = estimator.get_motion_mask(frame)
+    mag_map, mask = estimator.get_motion_mask(frame)
     return get_rois(mask, exclusion_regions=exclusion_regions), mask
 
 
 def variant_full_pipeline(estimator, frame, exclusion_regions=None):
-    mask = estimator.get_motion_mask(frame)  # estimator has use_stabilization=True
+    mag_map, mask = estimator.get_motion_mask(frame)  # estimator has use_stabilization=True
     return get_rois(mask, exclusion_regions=exclusion_regions), mask
 
 

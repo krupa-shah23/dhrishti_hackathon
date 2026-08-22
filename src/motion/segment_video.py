@@ -24,6 +24,23 @@ def get_video_metadata(video_path: Path):
     
     cap.release()
     
+    # Check for audio using imageio_ffmpeg's bundled ffmpeg
+    has_audio = None
+    import subprocess
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        cmd = [ffmpeg_exe, "-i", str(video_path)]
+        # ffmpeg outputs stream info to stderr when just given -i
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+        # Look for a line containing "Audio:" in stderr
+        if "Audio:" in result.stderr:
+            has_audio = True
+        else:
+            has_audio = False
+    except Exception:
+        pass # Fallback to None if imageio_ffmpeg fails or missing
+
     return {
         "source_video": str(video_path.name),
         "fps": fps,
@@ -32,7 +49,7 @@ def get_video_metadata(video_path: Path):
         "height": height,
         "codec": codec,
         "duration_sec": duration_sec,
-        "has_audio": None # OpenCV doesn't easily expose audio streams
+        "has_audio": has_audio
     }
 
 def calculate_segments(duration_sec: float):

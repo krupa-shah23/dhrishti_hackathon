@@ -36,7 +36,6 @@ import numpy as np
 
 from .frame_stream import get_frame_stream_with_indices, get_target_fps, calculate_sample_rate
 from .grid_config import get_grid_config
-from .exclusion_regions import get_exclusion_mask
 from .motion import MotionEstimator
 
 # Master plan calibration window:
@@ -88,40 +87,21 @@ def _robust_stats(values: list[float]) -> tuple[float, float]:
     return median, std
 
 
-def calibrate_baseline(
+def collect_warmup_motion_masks(
     video_path: str,
     camera_id: str,
     *,
     calib_window_sec: Optional[float] = None,
     sample_rate: Optional[float] = None
-) -> dict[str, tuple[float, float]]:
+) -> tuple[list[np.ndarray], dict]:
     """
-    Streams through the calibration window of *video_path* and computes a
-    per-seat motion-intensity baseline.
-
-    Parameters
-    ----------
-    video_path : str
-        Path to the source video file.
-    camera_id : str
-        Camera identifier used to look up grid and exclusion mask.
-    calib_window_sec : float, optional
-        Override for the calibration window length in seconds.
-        If None, computed from the video duration via the master-plan rule.
-    sample_rate : float, optional
-        Frame sampling interval (1 = every frame).
-        If None, derived from the video duration via the master-plan FPS policy.
-
-    Returns
-    -------
-    dict mapping seat_id -> (mean, std)
-    Returns an empty dict if the video cannot be opened or the camera is
-    unknown.
+    Streams through the calibration window of *video_path* and computes
+    a list of motion masks (MOG2 foreground masks) and the grid dictionary.
     """
     # ---- 1. Open video to read metadata --------------------------------
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        return {}
+        return [], {}
 
     source_fps = cap.get(cv2.CAP_PROP_FPS)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -130,7 +110,7 @@ def calibrate_baseline(
     cap.release()
 
     if source_fps <= 0 or frame_count <= 0:
-        return {}
+        return [], {}
 
     duration_sec = frame_count / source_fps
 
@@ -143,39 +123,143 @@ def calibrate_baseline(
         sample_rate = calculate_sample_rate(source_fps, target_fps)
 
     # ---- 3. Load grid config for this camera ---------------------------
-    grid = get_grid_config(camera_id, width, height)
+    # get_frame_stream now yields frames resized to 480p height.
+    # We must fetch the grid config at the ACTUAL frame resolution (480p) we process,
+    # scaling seat bounding boxes accordingly if they are stored at native res.
+    target_h = 480
+    target_w = width
+    if height > 0 and height != target_h:
+        target_w = int(width * (target_h / height))
+        
+    grid = get_grid_config(camera_id, target_w, target_h)
     if not grid or not grid.get("seats"):
-        return {}
-    seats = grid["seats"]
+        return [], {}
 
-    # ---- 4. Build camera exclusion mask --------------------------------
-    cam_mask = get_exclusion_mask(camera_id, width, height)
+    # ---- 4. Set up MotionEstimator (stateful MOG2) ---------------------
+    # Note: We do NOT request or apply a camera exclusion mask here. 
+    # Exclusion masking is already applied at native resolution inside get_frame_stream.
+    from .motion import MotionEstimator, fuse_motion_signal
+    estimator = MotionEstimator()
 
-    # ---- 5. Set up MotionEstimator (stateful MOG2) ---------------------
-    estimator = MotionEstimator(camera_mask=cam_mask)
-
-    # ---- 6. Accumulate per-seat intensity scalars ----------------------
-    # Each seat accumulates a list of floats — one scalar per sampled frame.
-    # No frame data is retained in memory.
-    seat_samples: dict[str, list[float]] = {sid: [] for sid in seats}
+    # ---- 5. Accumulate motion masks ------------------------------------
+    masks = []
 
     for frame_idx, timestamp_sec, frame in get_frame_stream_with_indices(
-            video_path, sample_rate):
+            video_path, camera_id=camera_id, sample_rate=sample_rate):
 
-        # Stop at calibration window boundary
         if timestamp_sec > calib_window_sec:
             break
 
-        motion_mask = estimator.get_motion_mask(frame)
+        mag_map, mog2_mask = estimator.get_motion_mask(frame)
+        fused_mask = fuse_motion_signal(mag_map, mog2_mask)
+        masks.append(fused_mask)
 
+    return masks, grid
+
+
+def calibrate_baseline(
+    warmup_frames: list[np.ndarray],
+    grid: dict
+) -> dict[str, tuple[float, float]]:
+    """
+    Computes a per-seat motion-intensity baseline over a sequence of 
+    pre-computed warmup frames.
+
+    Parameters
+    ----------
+    warmup_frames : list[np.ndarray]
+        List of pre-computed motion masks (e.g. MOG2 foreground). These masks
+        are yielded by get_frame_stream at a 480p downsampled resolution.
+    grid : dict
+        Grid configuration dictionary containing a 'seats' mapping.
+        Note: The coordinates in this grid must already be scaled to match the
+        480p resolution of the warmup_frames (derived via get_grid_config with target dimensions).
+
+    Returns
+    -------
+    dict mapping seat_id -> (mean, std)
+    Returns an empty dict if the grid contains no seats.
+    """
+    if not grid or not grid.get("seats"):
+        return {}
+        
+    seats = grid["seats"]
+    seat_samples: dict[str, list[float]] = {sid: [] for sid in seats}
+
+    for motion_mask in warmup_frames:
         for seat_id, (x1, y1, x2, y2) in seats.items():
             intensity = _seat_intensity(motion_mask, x1, y1, x2, y2)
             seat_samples[seat_id].append(intensity)
 
-    # ---- 7. Compute robust statistics per seat -------------------------
     result: dict[str, tuple[float, float]] = {}
     for seat_id, samples in seat_samples.items():
         mean, std = _robust_stats(samples)
         result[seat_id] = (mean, std)
 
     return result
+
+import collections
+
+class RollingBaselineTracker:
+    def __init__(self, initial_samples: dict[str, list[float]], window_size: int = 300):
+        """
+        Maintains a rolling window of per-seat scalar motion intensities.
+        window_size: 300 frames (e.g., 2.5 minutes at 2 FPS).
+        Maintains genuine rolling median/MAD to avoid the skew of mean-family estimators (like EMA)
+        when real motion occurs inside the window.
+        """
+        self.window_size = window_size
+        self.history = {
+            seat_id: collections.deque(samples[-window_size:], maxlen=window_size)
+            for seat_id, samples in initial_samples.items()
+        }
+        self._current_stats = {}
+        self._recompute_all()
+        
+    def _recompute_all(self):
+        for seat_id, samples in self.history.items():
+            if samples:
+                self._current_stats[seat_id] = _robust_stats(list(samples))
+            else:
+                self._current_stats[seat_id] = (0.0, 0.0)
+
+    def update(self, seat_intensities: dict[str, float]) -> dict[str, tuple[float, float]]:
+        """
+        Adds new intensities and updates the baseline.
+        Returns the updated median/mad stats.
+        """
+        for seat_id, intensity in seat_intensities.items():
+            if seat_id not in self.history:
+                self.history[seat_id] = collections.deque(maxlen=self.window_size)
+            
+            self.history[seat_id].append(intensity)
+            # Recompute on the fly
+            self._current_stats[seat_id] = _robust_stats(list(self.history[seat_id]))
+            
+        return self._current_stats
+        
+    def get_stats(self) -> dict[str, tuple[float, float]]:
+        return self._current_stats
+
+def calibrate_baseline_with_tracker(
+    warmup_frames: list[np.ndarray],
+    grid: dict,
+    window_size: int = 300
+) -> tuple[dict[str, tuple[float, float]], RollingBaselineTracker]:
+    """
+    Computes initial baseline and returns a RollingBaselineTracker initialized with the warmup samples.
+    """
+    if not grid or not grid.get("seats"):
+        return {}, RollingBaselineTracker({}, window_size)
+        
+    seats = grid["seats"]
+    seat_samples: dict[str, list[float]] = {sid: [] for sid in seats}
+
+    for motion_mask in warmup_frames:
+        for seat_id, (x1, y1, x2, y2) in seats.items():
+            intensity = _seat_intensity(motion_mask, x1, y1, x2, y2)
+            seat_samples[seat_id].append(intensity)
+
+    tracker = RollingBaselineTracker(seat_samples, window_size=window_size)
+    return tracker.get_stats(), tracker
+

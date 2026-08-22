@@ -52,18 +52,31 @@ class MotionEstimator:
         """
         self.ignore_regions = regions
 
-    def get_motion_mask(self, frame):
+    def get_motion_mask(self, frame, mask=None):
         """
         frame: BGR np.ndarray (single video frame)
-        returns: binary mask (np.uint8, 0/255), shadows excluded,
-                 ignore_regions zeroed out, camera-shake compensated if enabled
+        mask: optional binary exclusion mask (0 to ignore, 255 to process)
+        returns: (mag_map, mog2_mask) where mag_map is absolute frame difference
+                 and mog2_mask is the cleaned binary MOG2 output.
         """
         if self.use_stabilization:
             frame, self.last_shift = self.stabilizer.stabilize(frame)
+            
+        # Apply passed exclusion mask to input frame BEFORE MOG2 and frame-diff
+        if mask is not None:
+            frame = cv2.bitwise_and(frame, frame, mask=mask)
 
         if self.camera_mask is not None:
             # Mask out excluded regions BEFORE MOG2 processing
             frame = cv2.bitwise_and(frame, frame, mask=self.camera_mask)
+            
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Frame diff magnitude
+        if not hasattr(self, 'prev_gray'):
+            self.prev_gray = gray
+        mag_map = cv2.absdiff(gray, self.prev_gray)
+        self.prev_gray = gray
 
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         raw_mask = self.mog2.apply(blurred, learningRate=self.learning_rate)
@@ -73,18 +86,39 @@ class MotionEstimator:
         _, binary_mask = cv2.threshold(raw_mask, 200, 255, cv2.THRESH_BINARY)
         
         # Ensure mask is also cleaned post-MOG2 in case of artifacts
+        if mask is not None:
+            binary_mask = cv2.bitwise_and(binary_mask, mask)
+            mag_map = cv2.bitwise_and(mag_map, mag_map, mask=mask)
+
         if self.camera_mask is not None:
             binary_mask = cv2.bitwise_and(binary_mask, self.camera_mask)
+            mag_map = cv2.bitwise_and(mag_map, mag_map, mask=self.camera_mask)
 
         for (x1, y1, x2, y2) in self.ignore_regions:
             binary_mask[y1:y2, x1:x2] = 0
+            mag_map[y1:y2, x1:x2] = 0
 
-        return binary_mask
+        return mag_map, binary_mask
 
     def reset(self):
         """Call when starting a new clip so stabilizer state doesn't leak across clips."""
         if self.stabilizer is not None:
             self.stabilizer.reset()
+
+
+DEFAULT_DIFF_THRESHOLD = 20
+
+def fuse_motion_signal(mag_map, mog2_mask, diff_threshold=DEFAULT_DIFF_THRESHOLD):
+    """
+    Fuses the frame-difference magnitude map and the MOG2 binary mask into a
+    single binary motion signal using a logical OR (union).
+    
+    This ensures we do not gate out true incidents: a pixel is considered motion 
+    if MOG2 flags it OR if the frame-difference exceeds the threshold.
+    """
+    import cv2
+    _, diff_mask = cv2.threshold(mag_map, diff_threshold, 255, cv2.THRESH_BINARY)
+    return cv2.bitwise_or(mog2_mask, diff_mask)
 
 
 def motion_intensity(mask):
@@ -121,18 +155,11 @@ def process_clip(folder_path, history=500, var_threshold=25,
         frame = cv2.imread(os.path.join(folder_path, fname))
         if frame is None:
             continue
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         masks.append(mask)
         intensities.append(motion_intensity(mask))
 
     return masks, intensities
-
-# Module-level convenience function matching the exact shared contract
-# signature: get_motion_mask(frame) -> mask
-# For single-frame calls outside a stateful loop (e.g. quick tests),
-# spin up a fresh estimator. In the real pipeline, prefer MotionEstimator
-# directly so background modeling persists across frames.
-_default_estimator = None
 
 def process_video(video_path, history=500, var_threshold=25,
                    learning_rate=0.0008, use_stabilization=False):
@@ -162,7 +189,7 @@ def process_video(video_path, history=500, var_threshold=25,
         ret, frame = cap.read()
         if not ret:
             break
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         masks.append(mask)
         intensities.append(motion_intensity(mask))
 
@@ -170,9 +197,3 @@ def process_video(video_path, history=500, var_threshold=25,
 
     metadata = {"fps": fps, "width": width, "height": height, "frame_count": frame_count}
     return masks, intensities, metadata
-
-def get_motion_mask(frame):
-    global _default_estimator
-    if _default_estimator is None:
-        _default_estimator = MotionEstimator()
-    return _default_estimator.get_motion_mask(frame)

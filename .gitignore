@@ -16,6 +16,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+*.whl
 
 # Coverage
 .coverage
@@ -95,6 +96,7 @@ scratch_*.py
 scratch_*.txt
 scratch_*.json
 scratch_*.csv
+*_events.json
 tmp/
 temp/
 

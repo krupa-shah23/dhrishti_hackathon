@@ -13,8 +13,38 @@ GRID_CONFIGS = {
             "seat_63": (470, 160, 640, 400),  # Back row right
             "seat_61": (80, 260, 310, 480),   # Front row left
             "seat_60": (280, 340, 480, 480),  # Front row right
+        },
+        "adjacency": {
+            "seat_66": ["seat_61"],
+            "seat_61": ["seat_66"],
+            "seat_65": ["seat_64"],
+            "seat_64": ["seat_65"]
         }
-    }
+    },
+    "DAHISAR1": {
+        "resolution": (1280, 720),
+        "seats": {
+            # Measured from clip 07 (07_seat_exchange.mkv) frame 300.
+            # Single row of 6 candidate seats along the left wall, perspective view.
+            # seat_7 is the isolated invigilator/admin desk on the right wall — NOT in adjacency.
+            "seat_1": (20, 430, 210, 720),    # Bottom-left, label '1'
+            "seat_2": (70, 280, 290, 540),    # Label '2'
+            "seat_3": (265, 165, 475, 410),   # Label '3'
+            "seat_4": (420, 90, 630, 295),    # Label '4'
+            "seat_5": (525, 35, 740, 210),    # Label '5'
+            "seat_6": (610, 0, 840, 135),     # Label '6', upper-right of row
+        },
+        "adjacency": {
+            # Direct-neighbor pairs only — no transitive chaining.
+            # seat_7 deliberately excluded (not a candidate seat).
+            "seat_1": ["seat_2"],
+            "seat_2": ["seat_1", "seat_3"],
+            "seat_3": ["seat_2", "seat_4"],
+            "seat_4": ["seat_3", "seat_5"],
+            "seat_5": ["seat_4", "seat_6"],
+            "seat_6": ["seat_5"],
+        }
+    },
 }
 
 def get_grid_config(camera_id: str, target_width: int = -1, target_height: int = -1) -> dict:
@@ -98,3 +128,17 @@ def get_seat_mask(frame_shape: tuple, seat_id: str, camera_id: str) -> np.ndarra
     x1, y1, x2, y2 = config["seats"][seat_id]
     mask[y1:y2, x1:x2] = 255
     return mask
+
+def get_adjacent_seats(seat_id: str, camera_id: str) -> set[str]:
+    """
+    Returns a set of seat_ids that are physically adjacent to the given seat_id.
+    Uses explicit adjacency maps if provided, otherwise falls back to empty set.
+    """
+    if camera_id not in GRID_CONFIGS:
+        return set()
+    
+    config = GRID_CONFIGS[camera_id]
+    if "adjacency" in config and seat_id in config["adjacency"]:
+        return set(config["adjacency"][seat_id])
+        
+    return set()

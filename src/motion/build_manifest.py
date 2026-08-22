@@ -4,12 +4,40 @@ import pandas as pd
 from pathlib import Path
 from src.motion.segment_video import get_video_metadata
 
+# Explicit configuration for camera mappings based on burned-in labels
+CAMERA_MAPPING = {
+    "01_phone_use.mkv": "Camera04",
+    "02_phone_use.mkv": "Camera04",
+    "03_mobile_usage.mkv": "Camera12",
+    "04_candidate_talking.mkv": "Camera12",
+    "05_crowd_reception.mkv": "Mumbai04",
+    "06_phone_use.mp4": "LUCKNOW1",
+    "07_seat_exchange.mkv": "DAHISAR1",
+    "08_seat12_copying.mkv": "AH003",
+}
+
 # Explicit configuration to map known videos to their properties
 CONFIG = {
-    "04.CCTV Candidate Talking.mkv": {
-        "camera_id": "Camera12",
+    "04_candidate_talking.mkv": {
         "near_empty_start": False
     }
+}
+
+# Clip number mapping and tracking notes
+NOTES_MAPPING = {
+    "01_phone_use.mkv": "Clip 1",
+    "02_phone_use.mkv": "Clip 2",
+    "03_mobile_usage.mkv": "Clip 3",
+    "04_candidate_talking.mkv": "Clip 4",
+    "05_crowd_reception.mkv": "Clip 5",
+    "06_phone_use.mp4": "UNMAPPED/UNKNOWN (previously assumed clip 7, pending re-check)",
+    "07_seat_exchange.mkv": "Clip 6",
+    "08_seat12_copying.mkv": "Clip 7 (confirmed exact match: 19305056 bytes, 88.4s)",
+}
+
+# Default exam_mode mapping, can be overridden per clip
+EXAM_MODE_MAPPING = {
+    "default": "CBT"
 }
 
 def build_manifest(data_dir: str | Path) -> pd.DataFrame:
@@ -33,8 +61,10 @@ def build_manifest(data_dir: str | Path) -> pd.DataFrame:
                 file_size_mb = p.stat().st_size / (1024 * 1024)
                 
                 file_config = CONFIG.get(p.name, {})
-                camera_id = file_config.get("camera_id", None)
+                camera_id = CAMERA_MAPPING.get(p.name, None)
                 near_empty_start = file_config.get("near_empty_start", None)
+                exam_mode = EXAM_MODE_MAPPING.get(p.name, EXAM_MODE_MAPPING["default"])
+                notes = NOTES_MAPPING.get(p.name, "")
                 
                 fps = meta['fps']
                 if fps <= 0:
@@ -47,6 +77,7 @@ def build_manifest(data_dir: str | Path) -> pd.DataFrame:
                     calib_window_sec = min(max(0.10 * duration_sec, 60.0), 300.0)
                     
                 row = {
+                    "video_id": p.stem,
                     "filename": p.name,
                     "duration_sec": round(duration_sec, 2) if duration_sec else None,
                     "resolution": resolution,
@@ -54,12 +85,14 @@ def build_manifest(data_dir: str | Path) -> pd.DataFrame:
                     "has_audio": meta.get('has_audio', None),
                     "camera_id": camera_id,
                     "near_empty_start": near_empty_start,
+                    "exam_mode": exam_mode,
                     "frame_count": meta['frame_count'],
                     "codec": meta['codec'],
                     "container": p.suffix.lower().strip('.'),
                     "file_size_mb": round(file_size_mb, 2),
                     "path": str(p),
-                    "calib_window_sec": round(calib_window_sec, 2) if calib_window_sec else None
+                    "calib_window_sec": round(calib_window_sec, 2) if calib_window_sec else None,
+                    "notes": notes
                 }
                 
                 rows.append(row)
@@ -67,7 +100,7 @@ def build_manifest(data_dir: str | Path) -> pd.DataFrame:
                 print(f"Failed to process {p}: {e}")
                 
     df = pd.DataFrame(rows)
-    mandatory_cols = ["filename", "duration_sec", "resolution", "fps", "has_audio", "camera_id", "near_empty_start"]
+    mandatory_cols = ["video_id", "filename", "duration_sec", "resolution", "fps", "has_audio", "camera_id", "near_empty_start", "exam_mode", "notes"]
     if df.empty:
         df = pd.DataFrame(columns=mandatory_cols)
     else:
@@ -116,7 +149,7 @@ def main():
     if processed > 0:
         print("\nConcise Metadata Summary:")
         # Convert None to readable NaN for text alignment
-        summary_df = df[["filename", "duration_sec", "resolution", "fps", "camera_id", "near_empty_start"]]
+        summary_df = df[["video_id", "camera_id", "resolution", "duration_sec", "has_audio"]]
         print(summary_df.to_string(index=False))
 
 if __name__ == "__main__":

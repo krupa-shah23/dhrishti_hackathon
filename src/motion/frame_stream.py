@@ -30,12 +30,15 @@ def calculate_sample_rate(source_fps: float, target_fps: float) -> float:
         return 1.0
     return source_fps / target_fps
 
-def get_frame_stream_with_indices(path: str, sample_rate: float = 1.0) -> Generator[Tuple[int, float, np.ndarray], None, None]:
+def get_frame_stream_with_indices(path: str, camera_id: str = None, sample_rate: float = 1.0) -> Generator[Tuple[int, float, np.ndarray], None, None]:
     """
     Genuinely streams frames from the video sequentially.
     Yields: (frame_index, timestamp_sec, frame)
     Uses a fractional-index approach to deterministically handle non-integer sample rates.
+    Applies the exclusion mask at native resolution, then downsizes to 480p preserving aspect ratio.
     """
+    from .exclusion_regions import get_exclusion_mask
+    
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise ValueError(f"Could not open video stream: {path}")
@@ -44,12 +47,25 @@ def get_frame_stream_with_indices(path: str, sample_rate: float = 1.0) -> Genera
     if source_fps <= 0:
         source_fps = 30.0 # Safe fallback for unknown streams
         
+    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    exclusion_mask = None
+    if camera_id is not None:
+        exclusion_mask = get_exclusion_mask(camera_id, orig_w, orig_h)
+        
+    target_h = 480
+    target_w = orig_w
+    if orig_h > 0 and orig_h != target_h:
+        target_w = int(orig_w * (target_h / orig_h))
+        
     # Ensure sample_rate is valid
     if sample_rate < 1.0:
         sample_rate = 1.0
 
     frame_index = 0
     next_target_index = 0.0
+    startup_stable = False
     
     try:
         while True:
@@ -57,8 +73,25 @@ def get_frame_stream_with_indices(path: str, sample_rate: float = 1.0) -> Genera
             if not ret:
                 break
                 
+            if not startup_stable:
+                # Corrupted frames (e.g. missing I-frame) have extremely low variance.
+                # Skip them so MOG2 doesn't learn a gray background.
+                if np.std(frame) < 30.0:
+                    frame_index += 1
+                    continue
+                startup_stable = True
+                
             if frame_index >= next_target_index:
                 timestamp_sec = frame_index / source_fps
+                
+                # 1. Apply mask at native resolution
+                if exclusion_mask is not None:
+                    frame = cv2.bitwise_and(frame, frame, mask=exclusion_mask)
+                    
+                # 2. Resize to target height
+                if orig_h > 0 and orig_h != target_h:
+                    frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                    
                 yield (frame_index, timestamp_sec, frame)
                 next_target_index += sample_rate
                 
@@ -66,9 +99,9 @@ def get_frame_stream_with_indices(path: str, sample_rate: float = 1.0) -> Genera
     finally:
         cap.release()
 
-def get_frame_stream(path: str, sample_rate: float = 1.0) -> Generator[np.ndarray, None, None]:
+def get_frame_stream(path: str, camera_id: str = None, sample_rate: float = 1.0) -> Generator[np.ndarray, None, None]:
     """
     Simple interface returning only the frame, wrapping the indexed stream.
     """
-    for _, _, frame in get_frame_stream_with_indices(path, sample_rate):
+    for _, _, frame in get_frame_stream_with_indices(path, camera_id, sample_rate):
         yield frame

@@ -102,7 +102,7 @@ def apply_exclusion_mask(mask: np.ndarray,
 
 
 def get_rois(mask, min_area=MIN_CONTOUR_AREA, return_cleaned=False,
-             exclusion_regions=None):
+             exclusion_regions=None, camera_id=None):
     """
     mask: binary foreground mask (np.uint8, 0/255) from get_motion_mask()
     exclusion_regions: list of (x1, y1, x2, y2) validated background rects
@@ -127,6 +127,16 @@ def get_rois(mask, min_area=MIN_CONTOUR_AREA, return_cleaned=False,
 
     h_img, w_img = mask.shape[:2]
     frame_area = h_img * w_img
+    
+    seats_config = {}
+    if camera_id:
+        try:
+            from .grid_config import get_grid_config
+            grid = get_grid_config(camera_id, w_img, h_img)
+            seats_config = grid.get("seats", {})
+        except ImportError:
+            pass
+
     boxes = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
@@ -136,10 +146,23 @@ def get_rois(mask, min_area=MIN_CONTOUR_AREA, return_cleaned=False,
         x1, y1 = x, y
         x2 = min(x + w, w_img - 1)
         y2 = min(y + h, h_img - 1)
-        boxes.append((x1, y1, x2, y2))  # convert (x,y,w,h) -> (x1,y1,x2,y2), clipped
+        bbox = (x1, y1, x2, y2)
+        
+        best_seat = "unknown"
+        max_intersection = 0
+        for seat_id, (sx1, sy1, sx2, sy2) in seats_config.items():
+            ix1, iy1 = max(x1, sx1), max(y1, sy1)
+            ix2, iy2 = min(x2, sx2), min(y2, sy2)
+            if ix2 > ix1 and iy2 > iy1:
+                intersection = (ix2 - ix1) * (iy2 - iy1)
+                if intersection > max_intersection:
+                    max_intersection = intersection
+                    best_seat = seat_id
+                    
+        boxes.append({"seat_id": best_seat, "bbox": bbox})
 
     # Sort top-to-bottom, then left-to-right so box order is reproducible run-to-run
-    boxes.sort(key=lambda b: (b[1], b[0]))
+    boxes.sort(key=lambda b: (b["bbox"][1], b["bbox"][0]))
 
     if return_cleaned:
         return boxes, cleaned
@@ -151,6 +174,14 @@ def draw_rois(frame, boxes, color=(0, 255, 0), thickness=2):
     Debug helper: draws boxes on a copy of the frame for visual sanity checks.
     """
     out = frame.copy()
-    for (x1, y1, x2, y2) in boxes:
+    for box_info in boxes:
+        # Check if it's a dict (new format) or tuple (old format in some tests)
+        if isinstance(box_info, dict):
+            x1, y1, x2, y2 = box_info["bbox"]
+            seat_id = box_info.get("seat_id", "unknown")
+            cv2.putText(out, seat_id, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        else:
+            x1, y1, x2, y2 = box_info
+            
         cv2.rectangle(out, (x1, y1), (x2, y2), color, thickness)
     return out

@@ -127,7 +127,6 @@ class P1P2TrackerPipeline:
         frame: Optional[np.ndarray],
         frame_index: int,
         rois_override: Optional[List[Tuple[float, float, float, float]]] = None,
-        camera_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Processes a single video frame sequentially:
@@ -137,10 +136,6 @@ class P1P2TrackerPipeline:
         4. Fuse tracks and detections via P2 fusion
         5. Filter invigilator tracks via P2 invigilator filter
         """
-        # seat_id_map: maps ROI bbox tuple -> seat_id, built from get_rois() dicts.
-        # Carried forward to fused_tracks so P2P3Bridge can store correct seat attribution.
-        roi_seat_map: Dict[Tuple, str] = {}
-
         if rois_override is not None:
             boxes = list(rois_override)
         elif frame is not None:
@@ -148,20 +143,18 @@ class P1P2TrackerPipeline:
             from src.motion.motion import fuse_motion_signal, motion_intensity as _motion_intensity
             fused_mask = fuse_motion_signal(mag_map, mask)
             frame_motion_intensity = _motion_intensity(fused_mask)
-            tagged_rois = get_rois(
+            boxes = get_rois(
                 fused_mask,
                 min_area=self.min_area,
                 exclusion_regions=self.exclusion_regions,
-                camera_id=camera_id,  # None is fine — get_rois defaults to 'unknown' for all seats
             )
-            # Build bbox→seat_id map BEFORE stripping to bare tuples for track()
-            for roi in tagged_rois:
-                if isinstance(roi, dict):
-                    roi_seat_map[roi["bbox"]] = roi.get("seat_id", "unknown")
-            boxes = [roi["bbox"] if isinstance(roi, dict) else roi for roi in tagged_rois]
         else:
             boxes = []
             frame_motion_intensity = 0.0
+
+        # get_rois() returns {seat_id, bbox} dicts since the seat-tagging refactor.
+        # track() expects bare (x1,y1,x2,y2) tuples — extract bbox here.
+        boxes = [b["bbox"] if isinstance(b, dict) else b for b in boxes]
 
         # 2. Track (MUST be called on every frame including empty boxes)
         tracks = track(boxes)
@@ -236,32 +229,11 @@ class P1P2TrackerPipeline:
             tracks, detections, containment_thresh=self.containment_thresh
         )
 
-        # 5. Invigilator Filter + seat_id passthrough
-        # Match each fused track back to the ROI box with highest IOU to recover seat_id.
+        # 5. Invigilator Filter
         for ft in fused_tracks:
             tid = ft["track_id"]
             track_hist = get_track_history(tid)
             ft["invigilator_flag"] = is_invigilator_track(track_hist)
-
-            # Attach seat_id: find the ROI box that best matches this track's current box
-            if roi_seat_map:
-                fx1, fy1, fx2, fy2 = ft["box"]
-                best_seat = "unknown"
-                best_iou = 0.0
-                for bbox, seat_id in roi_seat_map.items():
-                    bx1, by1, bx2, by2 = bbox
-                    ix1, iy1 = max(fx1, bx1), max(fy1, by1)
-                    ix2, iy2 = min(fx2, bx2), min(fy2, by2)
-                    if ix2 > ix1 and iy2 > iy1:
-                        inter = (ix2 - ix1) * (iy2 - iy1)
-                        union = ((fx2-fx1)*(fy2-fy1) + (bx2-bx1)*(by2-by1) - inter)
-                        iou = inter / union if union > 0 else 0.0
-                        if iou > best_iou:
-                            best_iou = iou
-                            best_seat = seat_id
-                ft["seat_id"] = best_seat
-            else:
-                ft["seat_id"] = "unknown"
 
         return {
             "frame_index": frame_index,

@@ -17,7 +17,12 @@ import cv2
 import numpy as np
 
 from motion import MotionEstimator
-from roi import get_rois, clean_mask
+from roi import get_rois as _get_rois
+def get_rois(*args, **kwargs):
+    res = _get_rois(*args, **kwargs)
+    if kwargs.get('return_cleaned'):
+        return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+    return [b['bbox'] if isinstance(b, dict) else b for b in res], clean_mask
 
 THRESHOLDS = (500, 1000, 1500, 2000)
 
@@ -40,7 +45,7 @@ def find_high_motion_frame(video_path, sample_stride=50):
         ret, frame = cap.read()
         if not ret:
             break
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         if i % sample_stride == 0:
             cleaned = clean_mask(mask)
             contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -70,7 +75,7 @@ def check_thresholds(video_path, target_frame_idx):
         ret, frame = cap.read()
         if not ret:
             raise RuntimeError(f"Video ended before reaching frame {target_frame_idx}")
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
     cap.release()
 
     print(f"\n  Frame {target_frame_idx} — box count and sizes per min_area threshold:")

@@ -1,0 +1,9 @@
+video_id,filename,duration_sec,resolution,fps,has_audio,camera_id,near_empty_start,exam_mode,notes,frame_count,codec,container,file_size_mb,path,calib_window_sec
+01_phone_use,01_phone_use.mkv,131.28,1280x720,25.0,False,Camera04,,CBT,Clip 1,3282,h264,mkv,30.47,data\drishti\01_phone_use.mkv,60.0
+02_phone_use,02_phone_use.mkv,212.16,1280x720,25.0,False,Camera04,,CBT,Clip 2,5304,h264,mkv,49.25,data\drishti\02_phone_use.mkv,60.0
+03_mobile_usage,03_mobile_usage.mkv,281.79,1280x720,12.08,False,Camera12,,CBT,Clip 3,3405,FMP4,mkv,62.94,data\drishti\03_mobile_usage.mkv,60.0
+04_candidate_talking,04_candidate_talking.mkv,143.12,640x480,8.0,False,Camera12,False,CBT,Clip 4,1145,h264,mkv,4.05,data\drishti\04_candidate_talking.mkv,60.0
+05_crowd_reception,05_crowd_reception.mkv,240.8,1280x720,25.0,False,Mumbai04,,CBT,Clip 5,6021,FMP4,mkv,302.36,data\drishti\05_crowd_reception.mkv,60.0
+06_phone_use,06_phone_use.mp4,7697.2,1280x720,25.0,False,LUCKNOW1,,CBT,"UNMAPPED/UNKNOWN (previously assumed clip 7, pending re-check)",192431,FMP4,mp4,5564.21,data\drishti\06_phone_use.mp4,300.0
+07_seat_exchange,07_seat_exchange.mkv,8061.93,1280x720,22.0,False,DAHISAR1,,CBT,Clip 6,177365,FMP4,mkv,2703.25,data\drishti\07_seat_exchange.mkv,300.0
+08_seat12_copying,08_seat12_copying.mkv,88.4,1280x720,25.0,False,AH003,,CBT,"Clip 7 (confirmed exact match: 19305056 bytes, 88.4s)",2210,FMP4,mkv,18.41,data\drishti\08_seat12_copying.mkv,60.0

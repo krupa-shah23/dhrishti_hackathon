@@ -57,14 +57,14 @@ class TestBuildManifest(unittest.TestCase):
         cv2.VideoCapture = MockCap
         
         try:
-            video_path = self.data_dir / "04.CCTV Candidate Talking.mkv"
+            video_path = self.data_dir / "04_candidate_talking.mkv"
             video_path.write_text("fake valid video data")
             
             df = build_manifest(self.data_dir)
             self.assertEqual(len(df), 1)
             row = df.iloc[0]
             
-            self.assertEqual(row["filename"], "04.CCTV Candidate Talking.mkv")
+            self.assertEqual(row["filename"], "04_candidate_talking.mkv")
             self.assertEqual(row["camera_id"], "Camera12")
             self.assertEqual(row["near_empty_start"], False)
             self.assertEqual(row["duration_sec"], 10.0)

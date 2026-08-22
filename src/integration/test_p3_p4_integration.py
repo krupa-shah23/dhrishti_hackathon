@@ -43,11 +43,16 @@ class TestPhase3Phase4Integration(unittest.TestCase):
         """TEST A: 1 frame with 2 ROIs and 2 detections."""
         rois = [(50.0, 50.0, 150.0, 200.0), (300.0, 300.0, 400.0, 450.0)]
         dets = [
-            ((70.0, 70.0, 100.0, 100.0), "phone", 0.92),
-            ((320.0, 320.0, 350.0, 350.0), "chit", 0.88),
+            ((20.0, 20.0, 50.0, 50.0), "phone", 0.92),
+            ((20.0, 20.0, 50.0, 50.0), "paper-chit", 0.88),
         ]
+        
+        # We call detect_objects per track, so return one detection per call
+        mock_returns = [[dets[0]], [dets[1]]]
+        def mock_detect(*args, **kwargs):
+            return mock_returns.pop(0) if mock_returns else []
 
-        with patch("src.integration.p1_p2_tracker.detect_objects", return_value=dets):
+        with patch("src.integration.p1_p2_tracker.detect_objects", side_effect=mock_detect):
             res = self.pipeline.process_frame(
                 self.dummy_frame, frame_index=0, rois_override=rois
             )
@@ -59,7 +64,7 @@ class TestPhase3Phase4Integration(unittest.TestCase):
 
         # Check matched detections in fused tracks
         classes = sorted([ft["class"] for ft in res["fused_tracks"]])
-        self.assertEqual(classes, ["chit", "phone"])
+        self.assertEqual(classes, ["paper-chit", "phone"])
 
     def test_B_zero_rois_with_detections(self):
         """TEST B: 1 frame with 0 ROIs but detections present."""
@@ -73,7 +78,7 @@ class TestPhase3Phase4Integration(unittest.TestCase):
 
         self.assertEqual(res["rois"], [])
         self.assertEqual(res["tracks"], [])
-        self.assertEqual(res["detections"], dets)
+        self.assertEqual(res["detections"], [])
         self.assertEqual(res["fused_tracks"], [])
 
     def test_C_rois_with_no_detections(self):
@@ -130,7 +135,7 @@ class TestPhase3Phase4Integration(unittest.TestCase):
     def test_F_detection_matches_track(self):
         """TEST F: Detection inside track box attaches class & confidence."""
         rois = [(100.0, 100.0, 300.0, 300.0)]
-        dets = [((150.0, 150.0, 180.0, 180.0), "phone", 0.91)]
+        dets = [((50.0, 50.0, 80.0, 80.0), "phone", 0.91)]
 
         with patch("src.integration.p1_p2_tracker.detect_objects", return_value=dets):
             res = self.pipeline.process_frame(
@@ -144,7 +149,7 @@ class TestPhase3Phase4Integration(unittest.TestCase):
     def test_G_unmatched_detection_does_not_create_fake_track(self):
         """TEST G: Detection outside any track box does not create a fake track."""
         rois = [(50.0, 50.0, 100.0, 100.0)]
-        dets = [((400.0, 400.0, 450.0, 450.0), "phone", 0.99)]
+        dets = [((350.0, 350.0, 400.0, 400.0), "phone", 0.99)]
 
         with patch("src.integration.p1_p2_tracker.detect_objects", return_value=dets):
             res = self.pipeline.process_frame(
@@ -184,7 +189,7 @@ class TestPhase3Phase4Integration(unittest.TestCase):
         """TEST I: Exception during detection is caught cleanly and does not break tracking."""
         rois = [(50.0, 50.0, 100.0, 100.0)]
 
-        def failing_detector(frame):
+        def failing_detector(crop_list, exam_mode):
             raise RuntimeError("CUDA out of memory or inference hardware failure")
 
         with patch("src.integration.p1_p2_tracker.detect_objects", side_effect=failing_detector):

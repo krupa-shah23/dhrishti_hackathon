@@ -90,7 +90,7 @@ class TestFrameStream(unittest.TestCase):
             # Verify the output format instead of exact compression-lossy pixel values
             self.assertIsInstance(idx, int)
             self.assertIsInstance(ts, float)
-            self.assertEqual(frame.shape, (100, 100, 3))
+            self.assertEqual(frame.shape, (480, 480, 3))
             
     def test_simple_api(self):
         stream = get_frame_stream(str(self.test_video), sample_rate=4.0)
@@ -100,7 +100,7 @@ class TestFrameStream(unittest.TestCase):
         self.assertIsInstance(frames[0], np.ndarray)
         
     def test_real_video_integration(self):
-        real_video = Path("data/drishti/04.CCTV Candidate Talking.mkv")
+        real_video = Path("data/drishti/04_candidate_talking.mkv")
         if real_video.exists():
             cap = cv2.VideoCapture(str(real_video))
             source_fps = cap.get(cv2.CAP_PROP_FPS)
@@ -117,7 +117,7 @@ class TestFrameStream(unittest.TestCase):
             
             # Since we just want to verify it without fully processing in tests,
             # we can pull a few frames to make sure it doesn't crash.
-            stream = get_frame_stream_with_indices(str(real_video), sample_rate)
+            stream = get_frame_stream_with_indices(str(real_video), sample_rate=sample_rate)
             first_frame = next(stream)
             self.assertEqual(first_frame[0], 0)
             
@@ -131,6 +131,14 @@ class TestFrameStream(unittest.TestCase):
             # Expected around 1145 / 4 = ~287 frames
             self.assertAlmostEqual(count, 287, delta=2)
             self.assertLess(last_idx, frame_count)
+
+    def test_resize_and_mask_behavior(self):
+        # The synthetic test_video is 100x100. target_h is 480.
+        # target_w = int(100 * (480 / 100)) = 480.
+        # It should upscale to 480x480.
+        stream = get_frame_stream_with_indices(str(self.test_video), sample_rate=1.0)
+        first_frame = next(stream)[2]
+        self.assertEqual(first_frame.shape, (480, 480, 3))
 
 if __name__ == '__main__':
     unittest.main()

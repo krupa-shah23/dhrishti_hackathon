@@ -60,7 +60,7 @@ def run_check(clip_name, folder_path):
     intensities = []
 
     for i, (fname, frame) in enumerate(load_frames_from_folder(folder_path)):
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         score = motion_intensity(mask)
         intensities.append(score)
 
@@ -92,6 +92,78 @@ def run_check(clip_name, folder_path):
         print("  [WARN] No frames were processed — check folder contents.")
 
 
+import unittest
+import numpy as np
+
+class TestMotionEstimator(unittest.TestCase):
+    def test_get_motion_mask_synthetic(self):
+        estimator = MotionEstimator()
+        # Frame 1: black
+        frame1 = np.zeros((100, 100, 3), dtype=np.uint8)
+        # Frame 2: white square in middle
+        frame2 = np.zeros((100, 100, 3), dtype=np.uint8)
+        frame2[40:60, 40:60] = 255
+        
+        # First frame should have mag_map all zeros, mog2_mask mostly zeros
+        mag1, mask1 = estimator.get_motion_mask(frame1)
+        self.assertEqual(mag1.shape, (100, 100))
+        self.assertEqual(mask1.shape, (100, 100))
+        self.assertEqual(np.count_nonzero(mag1), 0)
+        
+        # Second frame should have mag_map with a 20x20 block of 255s
+        mag2, mask2 = estimator.get_motion_mask(frame2)
+        # 20x20 = 400 pixels
+        self.assertEqual(np.count_nonzero(mag2 > 0), 400)
+        
+    def test_exclusion_mask_applied(self):
+        estimator = MotionEstimator()
+        frame1 = np.zeros((100, 100, 3), dtype=np.uint8)
+        frame2 = np.zeros((100, 100, 3), dtype=np.uint8)
+        frame2[40:60, 40:60] = 255
+        
+        # Exclude the exact area where the motion happens
+        excl_mask = np.ones((100, 100), dtype=np.uint8) * 255
+        excl_mask[40:60, 40:60] = 0
+        
+        mag1, mask1 = estimator.get_motion_mask(frame1, mask=excl_mask)
+        mag2, mask2 = estimator.get_motion_mask(frame2, mask=excl_mask)
+        
+        # The mag_map should be entirely zeroed out by the exclusion mask
+        self.assertEqual(np.count_nonzero(mag2 > 0), 0)
+        self.assertEqual(np.count_nonzero(mask2 > 0), 0)
+
+    def test_fusion_union(self):
+        estimator = MotionEstimator()
+        frame1 = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        frame2 = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        
+        # MOG2 needs history, so let's push frame1 a few times to build background
+        for _ in range(5):
+            estimator.get_motion_mask(frame1)
+            
+        # Add a subtle, low-contrast change to frame2 (difference of 30)
+        # It might be too subtle for MOG2's varThreshold (25 variance), but frame-diff > 20 catches it.
+        # Note: MOG2 varThreshold 25 corresponds to squared Mahalanobis distance. 
+        # Actually, let's explicitly make MOG2 fail to detect by pushing a slow fade, 
+        # or we just rely on the manual thresholding here to test the logic of union.
+        
+        frame2[40:60, 40:60] = 128 + 25  # Difference of 25.
+        
+        mag2, mog2_mask2 = estimator.get_motion_mask(frame2)
+        try:
+            from src.motion.motion import fuse_motion_signal
+        except ImportError:
+            from motion import fuse_motion_signal
+            
+        fused_mask = fuse_motion_signal(mag2, mog2_mask2)
+        
+        # Verify fused_mask contains the 20x20 region (at least 400), proving union includes frame-diff
+        self.assertTrue(np.count_nonzero(fused_mask) >= 400)
+
 if __name__ == "__main__":
-    for name, path in CLIP_PATHS.items():
-        run_check(name, path)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "run_checks":
+        for name, path in CLIP_PATHS.items():
+            run_check(name, path)
+    else:
+        unittest.main()

@@ -4,11 +4,21 @@ import argparse
 
 try:
     from .motion import MotionEstimator
-    from .roi import get_rois
+    from .roi import get_rois as _get_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from .exclusion_regions import get_exclusion_regions
 except ImportError:
     from motion import MotionEstimator
-    from roi import get_rois
+    from roi import get_rois as _get_rois
+    def get_rois(*args, **kwargs):
+        res = _get_rois(*args, **kwargs)
+        if kwargs.get('return_cleaned'):
+            return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
+        return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from exclusion_regions import get_exclusion_regions
 
 
@@ -30,7 +40,7 @@ def benchmark_video(video_path, min_area=500):
         if not ok:
             break
 
-        mask = estimator.get_motion_mask(frame)
+        mag_map, mask = estimator.get_motion_mask(frame)
         rois = get_rois(mask, min_area=min_area)
 
         total_rois += len(rois)
