@@ -248,3 +248,8 @@ dist/
 *.crt
 credentials.json
 service-account.json
+node_modules/
+.env
+uploads/
+dist/
+*.log
