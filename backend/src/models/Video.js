@@ -11,6 +11,7 @@ const videoSchema = new mongoose.Schema(
     filepath: { type: String, required: true },
     mimetype: { type: String, default: 'video/mp4' },
     size: { type: Number, default: 0 },            // bytes
+    contentHash: { type: String, default: null, index: true }, // SHA-256 of file bytes, for dedup
     duration: { type: Number, default: null },       // seconds (populated by ML)
     fps: { type: Number, default: null },            // frames per second (populated by ML)
     status: {

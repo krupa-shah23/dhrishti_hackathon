@@ -96,7 +96,13 @@ const start = async () => {
     startStatusWorker();
   } catch (err) {
     console.warn('⚠️  Redis/BullMQ not available. Status worker not started:', err.message);
-    // Fall back to dev mock processor so videos still get processed end-to-end
+  }
+
+  // In development, always run the mock processor so videos get processed
+  // end-to-end without needing Redis or the Python ML service.
+  // (BullMQ workers connect lazily — statusWorker never throws even when
+  // Redis is down, so we can't rely on the catch block above to detect it.)
+  if (config.nodeEnv === 'development') {
     const { startMockProcessor } = require('./queues/mockProcessor');
     startMockProcessor();
   }

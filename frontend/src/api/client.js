@@ -3,8 +3,27 @@
  * Centralized Axios instance for all backend calls.
  */
 import axios from 'axios';
+import * as tus from 'tus-js-client';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const RETRY_DELAYS = [0, 1000, 3000, 5000, 10000];
+
+// tus-js-client wraps HTTP failures in a DetailedError with the raw response
+// on .originalResponse — pull our backend's {success,error} JSON out of it so
+// resumable-upload failures surface the same message text as the old
+// single-POST path's err.response?.data?.error did.
+function extractTusErrorMessage(error) {
+  try {
+    const body = error?.originalResponse?.getBody?.();
+    if (body) {
+      const parsed = JSON.parse(body);
+      if (parsed?.error) return parsed.error;
+    }
+  } catch (_e) { /* not JSON — fall through to the raw error message */ }
+  return error?.message || 'Upload failed';
+}
+
+
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -25,12 +44,14 @@ export const videoApi = {
     mimetype: file.type || 'video/mp4',
   }),
 
-  // Legacy full-file upload kept for reference / real ML integration
+  // File upload — uses raw axios (NOT the shared api instance) so the browser
+  // can automatically set Content-Type: multipart/form-data with the correct boundary.
+  // The shared api instance has Content-Type: application/json which breaks multer.
+  // Kept working alongside uploadResumable below — not a hard cutover.
   upload: (file, onProgress) => {
     const formData = new FormData();
     formData.append('video', file);
-    return api.post('/videos/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    return axios.post(`${API_BASE}/videos/upload`, formData, {
       timeout: 0, // no timeout for large uploads
       onUploadProgress: (e) => {
         if (onProgress && e.total) {
@@ -38,6 +59,44 @@ export const videoApi = {
         }
       },
     });
+  },
+
+  // Resumable, chunked upload via tus-js-client — automatically resumes after
+  // a dropped connection or page reload (it fingerprints the file and looks
+  // up any matching in-progress upload before starting a new one).
+  // Returns the tus-js-client Upload instance so the caller can .abort() it.
+  uploadResumable: (file, { onProgress, onResuming, onSuccess, onError } = {}) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${API_BASE}/videos/upload/tus`,
+      chunkSize: 5 * 1024 * 1024, // 5MB — small enough to demonstrate real resume-from-last-chunk behavior
+      retryDelays: RETRY_DELAYS,
+      metadata: { filename: file.name, filetype: file.type || 'video/mp4' },
+      onShouldRetry: (error) => {
+        // Business-rule rejections (slot limit, duplicate, invalid file,
+        // disk full) won't succeed on retry — only retry on transient/network
+        // failures, same distinction the backend's own error paths already make.
+        const status = error?.originalResponse?.getStatus?.();
+        if (status && [409, 422, 507].includes(status)) return false;
+        onResuming?.(true);
+        return true;
+      },
+      onProgress: (bytesSent, bytesTotal) => {
+        onResuming?.(false);
+        onProgress?.(Math.round((bytesSent / bytesTotal) * 100));
+      },
+      onSuccess: () => onSuccess?.(upload),
+      onError: (error) => onError?.(new Error(extractTusErrorMessage(error))),
+    });
+
+    upload.findPreviousUploads().then((previousUploads) => {
+      if (previousUploads.length > 0) {
+        upload.resumeFromPreviousUpload(previousUploads[0]);
+        onResuming?.(true);
+      }
+      upload.start();
+    });
+
+    return upload;
   },
   delete: (id) => api.delete(`/videos/${id}`),
   requeue: (id) => api.post(`/videos/${id}/requeue`),

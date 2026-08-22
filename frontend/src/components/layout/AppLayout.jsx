@@ -1,15 +1,16 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Bell, CalendarDays, LayoutDashboard, UploadCloud,
-  AlertTriangle, Users, Settings, ShieldCheck, Search, Video,
+  AlertTriangle, Users, Settings, ShieldCheck, Search, Video, Home,
 } from 'lucide-react';
 
 const nav = [
-  { to: '/',          label: 'Dashboard',        icon: LayoutDashboard, exact: true },
-  { to: '/upload',    label: 'Upload Manager',   icon: UploadCloud },
-  { to: '/incidents', label: 'Incidents',        icon: AlertTriangle },
-  { to: '/persons',   label: 'Persons',          icon: Users },
-  { to: '/settings',  label: 'Settings',         icon: Settings },
+  { to: '/home',      label: 'Home',           icon: Home,            exact: true },
+  { to: '/',          label: 'Dashboard',       icon: LayoutDashboard, exact: true },
+  { to: '/upload',    label: 'Upload Manager',  icon: UploadCloud },
+  { to: '/incidents', label: 'Incidents',       icon: AlertTriangle },
+  { to: '/persons',   label: 'Persons',         icon: Users },
+  { to: '/settings',  label: 'Settings',        icon: Settings },
 ];
 
 export default function AppLayout() {

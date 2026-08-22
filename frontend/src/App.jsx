@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
+import HomePage from './pages/HomePage';
 import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
 import AnalysisReport from './pages/AnalysisReport';
@@ -13,11 +14,15 @@ import PreviousRecords from './pages/PreviousRecords';
 export default function App() {
   return (
     <Routes>
+      {/* ── Landing Page — NO sidebar (outside AppLayout) ── */}
+      <Route path="/home" element={<HomePage />} />
+
+      {/* ── App Shell — all routes with sidebar + topbar ── */}
       <Route element={<AppLayout />}>
-        {/* Dashboard */}
+        {/* Dashboard — root "/" shows the dashboard inside the app shell */}
         <Route path="/" element={<DashboardPage />} />
 
-        {/* Upload Manager — real backend UploadPage */}
+        {/* Upload Manager */}
         <Route path="/upload" element={<UploadPage />} />
 
         {/* Analysis Report — video ID from backend MongoDB _id */}
@@ -36,7 +41,7 @@ export default function App() {
         {/* Settings */}
         <Route path="/settings" element={<SettingsPage />} />
 
-        {/* Previous Records (keep for historical mock review) */}
+        {/* Previous Records */}
         <Route path="/previous-records" element={<PreviousRecords />} />
 
         {/* Redirects */}

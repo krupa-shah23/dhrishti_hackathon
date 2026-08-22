@@ -9,15 +9,19 @@
     "seed": "node src/scripts/seed.js"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "mongoose": "^8.8.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "@tus/file-store": "^2.1.1",
+    "@tus/server": "^2.4.4",
+    "bullmq": "^5.25.0",
+    "check-disk-space": "^3.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "multer": "^1.4.5-lts.1",
-    "bullmq": "^5.25.0",
-    "ioredis": "^5.4.1",
-    "morgan": "^1.10.0",
+    "express": "^4.21.0",
     "helmet": "^8.0.0",
+    "ioredis": "^5.4.1",
+    "mongoose": "^8.8.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

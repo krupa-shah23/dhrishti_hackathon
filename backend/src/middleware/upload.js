@@ -11,18 +11,25 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, config.uploadDir);
   },
-  filename: (_req, file, cb) => {
+  filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
+    const generated = `${uuidv4()}${ext}`;
+    // Stash the name before the write starts: if the write fails partway
+    // (e.g. disk fills up), multer never sets req.file, so this is the only
+    // way the route can find and clean up the partial file afterward.
+    req._pendingUploadFilename = generated;
+    cb(null, generated);
   },
 });
 
 const fileFilter = (_req, file, cb) => {
-  const allowedMimes = ['video/mp4', 'video/avi', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska'];
-  if (allowedMimes.includes(file.mimetype)) {
+  // Accept any video/* MIME type — covers MP4, MKV (video/matroska),
+  // AVI, MOV, WebM, etc. A prefix check is more reliable than a
+  // hardcoded list because browsers vary in which exact string they send.
+  if (file.mimetype.startsWith('video/')) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type: ${file.mimetype}. Only video files are allowed.`), false);
+    cb(new Error(`Only video files are allowed. Received: ${file.mimetype}`), false);
   }
 };
 

@@ -27,6 +27,7 @@ export default function UploadPage() {
   const [videos, setVideos] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [resuming, setResuming] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
@@ -56,15 +57,12 @@ export default function UploadPage() {
     }
 
     try {
-      setUploading(true);
-      setUploadProgress(0);
-      // Register the video by metadata only — no file transfer, near-instant
-      await videoApi.register(file);
+      await videoApi.upload(file, (percent) => setUploadProgress(percent));
       setUploadProgress(100);
       await fetchVideos();
     } catch (err) {
       const msg = err.response?.data?.error || err.message;
-      alert(`Registration failed: ${msg}`);
+      alert(`Upload failed: ${msg}`);
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -124,16 +122,22 @@ export default function UploadPage() {
         {uploading ? (
           <>
             <Loader size={48} className="drop-zone-icon" style={{ animation: 'spin 1s linear infinite' }} />
-            <div className="drop-zone-title">Registering video...</div>
-            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
-              This only takes a moment — no file transfer needed
+            <div className="drop-zone-title" style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1rem' }}>
+              {resuming ? 'Resuming upload...' : 'Uploading video...'}
             </div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, fontFamily: 'DM Sans, sans-serif' }}>
+              {resuming ? 'Connection dropped — picking up from the last chunk' : 'Transferring file to backend server'}
+            </div>
+            <div className="progress-bar-container" style={{ maxWidth: 280, margin: '12px auto 0' }}>
+              <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>{uploadProgress}%</div>
           </>
         ) : (
           <>
             <CloudUpload size={48} className="drop-zone-icon" />
-            <div className="drop-zone-title">Upload Video for Analysis</div>
-            <div className="drop-zone-subtitle">
+            <div className="drop-zone-title" style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1rem' }}>Upload Video for Analysis</div>
+            <div className="drop-zone-subtitle" style={{ fontFamily: 'DM Sans, sans-serif' }}>
               Max 3 videos allowed • Drag & drop or click to browse
             </div>
           </>
@@ -195,8 +199,8 @@ function VideoSlotCard({ video, onDelete, onRequeue, onViewAnalysis, onViewVideo
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
             {isDone ? <CheckCircle2 size={22} color="var(--status-green)" /> :
-             isFailed ? <AlertCircle size={22} color="var(--status-red)" /> :
-             <FileVideo size={22} color="var(--status-blue)" />}
+              isFailed ? <AlertCircle size={22} color="var(--status-red)" /> :
+                <FileVideo size={22} color="var(--status-blue)" />}
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

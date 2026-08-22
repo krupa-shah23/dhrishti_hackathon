@@ -1,13 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Google Fonts removed — using system fonts to avoid network dependency */
+
+/* ── Tailwind CSS directives ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
    DRISHTI Design System — Unified Token Layer
+   Teal / Turquoise brand palette (#14b8a6, #0f766e)
    ═══════════════════════════════════════════════════════════ */
 :root {
-  /* Brand */
-  --navy:              #042f2e;
-  --navy2:             #0f766e;
-  --purple:            #8a4cfc;
+  /* Brand — updated to teal/turquoise */
+  --navy:              #042f2e;   /* deepest teal — sidebar bg */
+  --navy2:             #0f766e;   /* teal-700 — primary accent, buttons */
+  --primary:           #14b8a6;   /* teal-500 — bright primary */
+  --primary-light:     #2dd4bf;   /* teal-400 — hover / light accent */
+  --purple:            #8a4cfc;   /* kept for focus rings */
 
   /* Backgrounds */
   --bg:                #f8f9fb;
@@ -135,7 +143,7 @@ a:focus-visible { outline: 3px solid var(--purple); outline-offset: 2px; }
   cursor: pointer; transition: all 150ms; white-space: nowrap;
 }
 .btn-primary        { background: var(--navy2); color: #fff; }
-.btn-primary:hover  { background: #263660; }
+.btn-primary:hover  { background: var(--primary); box-shadow: 0 4px 20px rgba(20,184,166,.25); }
 .btn-ghost          { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
 .btn-ghost:hover    { background: var(--bg-primary); }
 .btn-sm             { padding: 7px 13px; font-size: 13px; }
@@ -243,7 +251,7 @@ td:first-child { color: var(--status-blue); font-weight: 600; }
 
 /* ─── Progress Bars ─── */
 .progress-bar-container { height: 9px; background: #e7e8ea; border-radius: 99px; overflow: hidden; }
-.progress-bar-fill      { height: 100%; background: var(--navy2); border-radius: inherit; transition: width .4s; }
+.progress-bar-fill      { height: 100%; background: linear-gradient(90deg, var(--navy2), var(--primary)); border-radius: inherit; transition: width .4s; }
 
 /* ─── Person Avatar ─── */
 .person-avatar             { border-radius: 50%; object-fit: cover; }

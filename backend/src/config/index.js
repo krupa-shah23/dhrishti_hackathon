@@ -20,6 +20,18 @@ module.exports = {
   // Video uploads
   uploadDir: process.env.UPLOAD_DIR || './uploads',
   maxVideoSlots: parseInt(process.env.MAX_VIDEO_SLOTS, 10) || 3,
+  // Minimum free space (MB) required on the upload volume before accepting a
+  // new upload. Default 2048MB (2GB): comfortably above a typical single
+  // exam-session recording for this app, well under multer's hard 10GB/file
+  // cap in middleware/upload.js — low enough not to false-positive-block
+  // normal uploads, high enough to catch a genuinely low-space disk early.
+  minFreeDiskMB: parseInt(process.env.MIN_FREE_DISK_MB, 10) || 2048,
+  // Scratch directory for in-progress tus (resumable) uploads. Deliberately
+  // a sibling of uploadDir, not nested inside it — the startup orphan-cleanup
+  // scan (utils/reconcileUploads.js) only knows about finished videos in
+  // uploadDir, so keeping tus's own bookkeeping files out of that directory
+  // avoids them ever being misidentified as orphans mid-transfer.
+  tusUploadDir: process.env.TUS_UPLOAD_DIR || './tus-tmp',
 
   // Gemini XAI
   geminiApiKey: process.env.GEMINI_API_KEY || '',
