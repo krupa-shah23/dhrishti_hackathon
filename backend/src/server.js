@@ -1,5 +1,6 @@
 /**
  * DRISHTI Backend — Express Server Entry Point
+ * Main server configuration and route initialization
  */
 const express = require('express');
 const cors = require('cors');
@@ -10,6 +11,8 @@ const fs = require('fs');
 
 const config = require('./config');
 const connectDB = require('./config/db');
+const reconcileUploads = require('./utils/reconcileUploads');
+const { mountTus, cleanupExpiredTusSessions } = require('./routes/tusUpload');
 const errorHandler = require('./middleware/errorHandler');
 const {
   videoRoutes,
@@ -48,6 +51,10 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// ─── Resumable (tus) upload endpoint — mounted before /api/videos so its
+// multi-segment paths (/api/videos/upload/tus[/:id]) are never shadowed. ───
+mountTus(app);
+
 // ─── API Routes ───
 app.use('/api/videos', videoRoutes);
 app.use('/api/events', eventRoutes);
@@ -68,12 +75,30 @@ app.use(errorHandler);
 const start = async () => {
   await connectDB();
 
+  // Reconcile uploads/ vs. Video docs once at boot, before serving traffic —
+  // catches orphaned files/docs left behind by a crash or restart mid-upload.
+  try {
+    await reconcileUploads();
+  } catch (err) {
+    console.warn('⚠️  Startup reconciliation failed (continuing anyway):', err.message);
+  }
+
+  // Purge tus (resumable upload) sessions nobody ever came back to finish.
+  try {
+    await cleanupExpiredTusSessions();
+  } catch (err) {
+    console.warn('⚠️  tus session cleanup failed (continuing anyway):', err.message);
+  }
+
   // Start BullMQ status listener (if Redis is available)
   try {
     const startStatusWorker = require('./queues/statusWorker');
     startStatusWorker();
   } catch (err) {
     console.warn('⚠️  Redis/BullMQ not available. Status worker not started:', err.message);
+    // Fall back to dev mock processor so videos still get processed end-to-end
+    const { startMockProcessor } = require('./queues/mockProcessor');
+    startMockProcessor();
   }
 
   app.listen(config.port, () => {
