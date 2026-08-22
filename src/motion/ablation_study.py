@@ -82,7 +82,7 @@ def run_pipeline_variant(
                 pose_signals=result.get("pose_signals"),
                 motion_intensity=result.get("motion_intensity"),
             )
-        frame_idx += step
+        frame_idx += 1
 
     cap.release()
     bridge.flush()

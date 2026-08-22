@@ -46,33 +46,34 @@ def frame_diff_only(video_path: str, diff_threshold: int = 25, min_event_frames:
     active_start_frame = None
     events = []
 
-    while True:
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    while frame_idx < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
         if not ret:
             break
-        if frame_idx % step == 0:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            if prev_gray is not None:
-                diff = cv2.absdiff(gray, prev_gray)
-                motion_ratio = float(np.count_nonzero(diff > diff_threshold)) / diff.size
-                
-                if motion_ratio > 0.01:
-                    if active_start_frame is None:
-                        active_start_frame = frame_idx
-                else:
-                    if active_start_frame is not None:
-                        dur_frames = frame_idx - active_start_frame
-                        if dur_frames >= min_event_frames:
-                            events.append({
-                                "event_id": f"fd_{len(events)}",
-                                "start_time": active_start_frame / fps,
-                                "end_time": frame_idx / fps,
-                                "start_sec": active_start_frame / fps,
-                                "end_sec": frame_idx / fps,
-                                "event_type": "motion_event",
-                            })
-                        active_start_frame = None
-            prev_gray = gray
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if prev_gray is not None:
+            diff = cv2.absdiff(gray, prev_gray)
+            motion_ratio = float(np.count_nonzero(diff > diff_threshold)) / diff.size
+            
+            if motion_ratio > 0.01:
+                if active_start_frame is None:
+                    active_start_frame = frame_idx
+            else:
+                if active_start_frame is not None:
+                    dur_frames = frame_idx - active_start_frame
+                    if dur_frames >= min_event_frames:
+                        events.append({
+                            "event_id": f"fd_{len(events)}",
+                            "start_time": active_start_frame / fps,
+                            "end_time": frame_idx / fps,
+                            "start_sec": active_start_frame / fps,
+                            "end_sec": frame_idx / fps,
+                            "event_type": "motion_event",
+                        })
+                    active_start_frame = None
+        prev_gray = gray
         frame_idx += step
 
     if active_start_frame is not None and (frame_idx - active_start_frame) >= min_event_frames:
@@ -105,30 +106,31 @@ def mog2_only(video_path: str, min_event_frames: int = 2, step: int = 30) -> Lis
     active_start_frame = None
     events = []
 
-    while True:
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    while frame_idx < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
         if not ret:
             break
-        if frame_idx % step == 0:
-            _, mog2_mask = estimator.get_motion_mask(frame)
-            motion_ratio = float(np.count_nonzero(mog2_mask)) / mog2_mask.size
+        _, mog2_mask = estimator.get_motion_mask(frame)
+        motion_ratio = float(np.count_nonzero(mog2_mask)) / mog2_mask.size
 
-            if motion_ratio > 0.008:
-                if active_start_frame is None:
-                    active_start_frame = frame_idx
-            else:
-                if active_start_frame is not None:
-                    dur_frames = frame_idx - active_start_frame
-                    if dur_frames >= min_event_frames:
-                        events.append({
-                            "event_id": f"mog2_{len(events)}",
-                            "start_time": active_start_frame / fps,
-                            "end_time": frame_idx / fps,
-                            "start_sec": active_start_frame / fps,
-                            "end_sec": frame_idx / fps,
-                            "event_type": "motion_event",
-                        })
-                    active_start_frame = None
+        if motion_ratio > 0.008:
+            if active_start_frame is None:
+                active_start_frame = frame_idx
+        else:
+            if active_start_frame is not None:
+                dur_frames = frame_idx - active_start_frame
+                if dur_frames >= min_event_frames:
+                    events.append({
+                        "event_id": f"mog2_{len(events)}",
+                        "start_time": active_start_frame / fps,
+                        "end_time": frame_idx / fps,
+                        "start_sec": active_start_frame / fps,
+                        "end_sec": frame_idx / fps,
+                        "event_type": "motion_event",
+                    })
+                active_start_frame = None
         frame_idx += step
 
     if active_start_frame is not None and (frame_idx - active_start_frame) >= min_event_frames:
@@ -161,35 +163,36 @@ def mog2_plus_roi(video_path: str, camera_id: str = "Camera12", step: int = 30) 
     seat_active_start: Dict[str, int] = {}
     events = []
 
-    while True:
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    while frame_idx < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
         if not ret:
             break
-        if frame_idx % step == 0:
-            _, mog2_mask = estimator.get_motion_mask(frame)
-            rois = get_rois(mog2_mask, min_area=300, camera_id=camera_id)
-            current_seats = set()
+        _, mog2_mask = estimator.get_motion_mask(frame)
+        rois = get_rois(mog2_mask, min_area=300, camera_id=camera_id)
+        current_seats = set()
 
-            for roi in rois:
-                seat_id = roi.get("seat_id", "unknown") if isinstance(roi, dict) else "unknown"
-                if seat_id != "unknown":
-                    current_seats.add(seat_id)
-                    if seat_id not in seat_active_start:
-                        seat_active_start[seat_id] = frame_idx
+        for roi in rois:
+            seat_id = roi.get("seat_id", "unknown") if isinstance(roi, dict) else "unknown"
+            if seat_id != "unknown":
+                current_seats.add(seat_id)
+                if seat_id not in seat_active_start:
+                    seat_active_start[seat_id] = frame_idx
 
-            for seat_id in list(seat_active_start.keys()):
-                if seat_id not in current_seats:
-                    start_f = seat_active_start.pop(seat_id)
-                    if (frame_idx - start_f) >= 3:
-                        events.append({
-                            "event_id": f"roi_{len(events)}",
-                            "seat_id": seat_id,
-                            "start_time": start_f / fps,
-                            "end_time": frame_idx / fps,
-                            "start_sec": start_f / fps,
-                            "end_sec": frame_idx / fps,
-                            "event_type": "seat_motion",
-                        })
+        for seat_id in list(seat_active_start.keys()):
+            if seat_id not in current_seats:
+                start_f = seat_active_start.pop(seat_id)
+                if (frame_idx - start_f) >= 3:
+                    events.append({
+                        "event_id": f"roi_{len(events)}",
+                        "seat_id": seat_id,
+                        "start_time": start_f / fps,
+                        "end_time": frame_idx / fps,
+                        "start_sec": start_f / fps,
+                        "end_sec": frame_idx / fps,
+                        "event_type": "seat_motion",
+                    })
         frame_idx += step
 
     for seat_id, start_f in seat_active_start.items():
@@ -225,18 +228,19 @@ def full_pipeline(video_path: str, clip_name: str = "01_phone_use.mkv", step: in
     bridge = P2P3Bridge(missing_threshold=15, fps=fps)
 
     frame_idx = 0
-    while True:
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    while frame_idx < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
         if not ret:
             break
-        if frame_idx % step == 0:
-            result = pipeline.process_frame(frame, frame_idx)
-            bridge.process_fused_tracks(
-                result["fused_tracks"],
-                frame_index=frame_idx,
-                pose_signals=result.get("pose_signals"),
-                motion_intensity=result.get("motion_intensity"),
-            )
+        result = pipeline.process_frame(frame, frame_idx)
+        bridge.process_fused_tracks(
+            result["fused_tracks"],
+            frame_index=frame_idx,
+            pose_signals=result.get("pose_signals"),
+            motion_intensity=result.get("motion_intensity"),
+        )
         frame_idx += step
 
     cap.release()

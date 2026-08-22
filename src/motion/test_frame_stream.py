@@ -14,7 +14,11 @@ class TestFrameStream(unittest.TestCase):
         self.test_video = self.data_dir / "test.mp4"
         out = cv2.VideoWriter(str(self.test_video), cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (100, 100))
         for i in range(30):
-            frame = np.full((100, 100, 3), i, dtype=np.uint8) # Fill with index so we can verify
+            # Create a frame with enough variance so np.std(frame) >= 30.0
+            # (get_frame_stream skips frames with low variance as corrupted)
+            frame = np.zeros((100, 100, 3), dtype=np.uint8)
+            frame[:50, :, :] = i        # Top half: i
+            frame[50:, :, :] = i + 100  # Bottom half: i+100
             out.write(frame)
         out.release()
         

@@ -68,9 +68,27 @@ def enrich_event_with_motion_fields(
     dict: event with added fields (mutates and returns in-place).
     """
     stats = motion_stats or {}
-    event["avg_motion_intensity"] = float(stats.get("avg_motion_intensity", 0.0))
-    event["peak_intensity"] = float(stats.get("peak_intensity", 0.0))
-    event["mog2_foreground_ratio"] = float(stats.get("mog2_foreground_ratio", 0.0))
+
+    if "avg_motion_intensity" in stats and "peak_intensity" in stats:
+        avg_int = float(stats.get("avg_motion_intensity", 0.0))
+        peak_int = float(stats.get("peak_intensity", 0.0))
+    elif "motion_intensities" in event and event["motion_intensities"]:
+        avg_int = sum(event["motion_intensities"]) / len(event["motion_intensities"])
+        peak_int = max(event["motion_intensities"])
+    else:
+        avg_int = float(stats.get("avg_motion_intensity", 0.0))
+        peak_int = float(stats.get("peak_intensity", 0.0))
+
+    if "mog2_foreground_ratio" in stats:
+        mog2_ratio = float(stats.get("mog2_foreground_ratio", 0.0))
+    elif "mog2_ratios" in event and event["mog2_ratios"]:
+        mog2_ratio = sum(event["mog2_ratios"]) / len(event["mog2_ratios"])
+    else:
+        mog2_ratio = float(stats.get("mog2_foreground_ratio", 0.0))
+
+    event["avg_motion_intensity"] = avg_int
+    event["peak_intensity"] = peak_int
+    event["mog2_foreground_ratio"] = mog2_ratio
     event["invigilator_excluded"] = bool(event.get("is_invigilator", False))
     event["intervention_detected"] = bool(stats.get("intervention_detected", False))
 

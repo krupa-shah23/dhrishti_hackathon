@@ -65,17 +65,25 @@ def time_overlap_ratio(pred_event: Union[Dict[str, Any], Any], gt_event: Union[D
     Computes IoU-style temporal overlap ratio between two [start, end] intervals
     as overlap_duration / union_duration.
 
-    Returns float in range [0.0, 1.0].
+    For point-events (duration 0), returns 1.0 if the point falls within the
+    other interval, otherwise 0.0.
     """
     pred_start, pred_end = _extract_start_end(pred_event)
     gt_start, gt_end = _extract_start_end(gt_event)
+
+    pred_dur = max(0.0, pred_end - pred_start)
+    gt_dur = max(0.0, gt_end - gt_start)
+
+    # Handle point-events natively
+    if gt_dur == 0.0:
+        return 1.0 if pred_start <= gt_start <= pred_end else 0.0
+    if pred_dur == 0.0:
+        return 1.0 if gt_start <= pred_start <= gt_end else 0.0
 
     intersection_start = max(pred_start, gt_start)
     intersection_end = min(pred_end, gt_end)
     overlap = max(0.0, intersection_end - intersection_start)
 
-    pred_dur = max(0.0, pred_end - pred_start)
-    gt_dur = max(0.0, gt_end - gt_start)
     union = pred_dur + gt_dur - overlap
 
     if union <= 0.0:
@@ -83,15 +91,24 @@ def time_overlap_ratio(pred_event: Union[Dict[str, Any], Any], gt_event: Union[D
     return float(overlap / union)
 
 
-def _extract_seat_id(event: Union[Dict[str, Any], Any]) -> Optional[str]:
-    """Extract seat_id from an event if present."""
+def _extract_seat_ids(event: Union[Dict[str, Any], Any]) -> set:
+    """Extract seat IDs from an event if present as a set."""
+    seats = set()
     if isinstance(event, dict):
-        seat = event.get("seat_id", event.get("seat", None))
+        if "seat_ids" in event and isinstance(event["seat_ids"], list):
+            seats.update([str(s).strip() for s in event["seat_ids"] if s])
+        elif "seat_id" in event or "seat" in event:
+            s = event.get("seat_id", event.get("seat"))
+            if s is not None and str(s).strip() != "" and str(s).strip().lower() != "nan":
+                seats.add(str(s).strip())
     else:
-        seat = getattr(event, "seat_id", getattr(event, "seat", None))
-    if seat is not None and str(seat).strip() != "" and str(seat).strip().lower() != "nan":
-        return str(seat).strip()
-    return None
+        if hasattr(event, "seat_ids") and isinstance(event.seat_ids, list):
+            seats.update([str(s).strip() for s in event.seat_ids if s])
+        elif hasattr(event, "seat_id") or hasattr(event, "seat"):
+            s = getattr(event, "seat_id", getattr(event, "seat", None))
+            if s is not None and str(s).strip() != "" and str(s).strip().lower() != "nan":
+                seats.add(str(s).strip())
+    return seats
 
 
 def match_events(
@@ -125,7 +142,7 @@ def match_events(
     sorted_gt = sorted(enumerate(gt_events), key=lambda x: _extract_start_end(x[1])[0])
 
     for gt_idx, gt_ev in sorted_gt:
-        gt_seat = _extract_seat_id(gt_ev)
+        gt_seats = _extract_seat_ids(gt_ev)
         best_pred_idx = None
         best_overlap = 0.0
 
@@ -134,8 +151,8 @@ def match_events(
                 continue
 
             # Validate seat_id compatibility if present in both
-            pred_seat = _extract_seat_id(pred_ev)
-            if gt_seat is not None and pred_seat is not None and gt_seat != pred_seat:
+            pred_seats = _extract_seat_ids(pred_ev)
+            if gt_seats and pred_seats and not (gt_seats & pred_seats):
                 continue
 
             overlap = time_overlap_ratio(pred_ev, gt_ev)

@@ -30,11 +30,13 @@ from src.motion.grid_config import GRID_CONFIGS
 def _make_synthetic_video(path: str, fps: float, n_frames: int,
                            width: int = 640, height: int = 480,
                            fill_value: int = 80) -> None:
-    """Write a short synthetic video filled with a uniform grey level."""
+    """Write a short synthetic video filled with a patterned grey level."""
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(path, fourcc, fps, (width, height))
     for i in range(n_frames):
         frame = np.full((height, width, 3), fill_value, dtype=np.uint8)
+        frame[:height//2, :, :] = 0
+        frame[height//2:, :, :] = 255
         out.write(frame)
     out.release()
 
@@ -42,16 +44,18 @@ def _make_synthetic_video(path: str, fps: float, n_frames: int,
 def _make_motion_video(path: str, fps: float, n_frames: int,
                         width: int = 640, height: int = 480) -> None:
     """
-    Write a video where frames alternate between background (dark) and a
+    Write a video where frames alternate between background (patterned) and a
     bright patch in the bottom-right region to simulate motion in seat_60.
     """
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(path, fourcc, fps, (width, height))
     for i in range(n_frames):
         frame = np.zeros((height, width, 3), dtype=np.uint8)
+        frame[:height//2, :, :] = 50
+        frame[height//2:, :, :] = 150
         # Brief bright flash as rare outliers (only twice in 80 frames)
         if i in (10, 40):
-            frame[340:480, 280:480] = 200
+            frame[340:480, 280:480] = 250
         out.write(frame)
     out.release()
 
