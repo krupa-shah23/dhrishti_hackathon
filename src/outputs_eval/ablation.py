@@ -1,5 +1,5 @@
 """
-ablation.py -- P4: Outputs, Evaluation & Integration
+ablation.py -- P4/P2b: Outputs, Evaluation & Integration
 Runs ablation studies by toggling individual pipeline components on/off
 and measuring their F1-score contribution.
 
@@ -33,8 +33,6 @@ from src.outputs_eval.metrics import (
 # Ablation axis definitions
 # ---------------------------------------------------------------------------
 
-# Each entry describes one ablation: a human label, and which config key
-# it disables (set to False). The baseline has all components enabled.
 ABLATION_AXES = [
     {
         "name":       "All Components (Baseline)",
@@ -56,7 +54,33 @@ ABLATION_AXES = [
 
 
 # ---------------------------------------------------------------------------
-# Mock ablation runner (uses synthetic events for demonstration)
+# Real ground-truth loading (ground_truth_events.csv)
+# ---------------------------------------------------------------------------
+
+def load_real_gt_events(gt_csv_path: str, video_id: str | None = None) -> list[Event]:
+    """
+    Loads ground_truth_events.csv (columns: event_id,video_id,start,end,
+    seat_id,event_type,notes). Excludes clip5 (unresolved footage, per
+    project decision). Optionally filters to a single video_id.
+    """
+    gt_events = []
+    with open(gt_csv_path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            vid = row.get("video_id", "")
+            if vid == "clip5":
+                continue
+            if video_id and vid != video_id:
+                continue
+            gt_events.append(Event(
+                start=float(row["start"]),
+                end=float(row["end"]),
+                label=row.get("event_type", ""),
+            ))
+    return gt_events
+
+
+# ---------------------------------------------------------------------------
+# Mock ablation runner (uses synthetic events until real pipeline lands)
 # ---------------------------------------------------------------------------
 
 def _mock_run_pipeline_for_ablation(
@@ -67,8 +91,10 @@ def _mock_run_pipeline_for_ablation(
     Placeholder that simulates processing the video and returns
     predicted events + elapsed time.
 
-    When P1/P2/P3 real modules are ready, replace this with a call
-    to main.run_pipeline() that returns the events list.
+    TODO: replace with a call to the real pipeline (P1 motion + P2a
+    detector via the tracker bridge) once the smoke test (§3, joint
+    execution doc) passes. Swap this function's body only — callers
+    and the CSV output shape stay the same.
 
     The mock applies a simple heuristic: disabling components
     reduces the number of detected events (simulating real F1 impact).
@@ -84,26 +110,20 @@ def _mock_run_pipeline_for_ablation(
 
     duration_s = total_frames / fps
 
-    # Simulate: each active component prunes false positives
-    # Baseline: detect events every ~3 seconds
     base_event_count = int(duration_s / 3.0)
 
     if not invigilator_filter:
-        # Without invigilator filter, ~30% more false events appear
         base_event_count = int(base_event_count * 1.30)
     if not exam_phase_logic:
-        # Without phase logic, ~20% more false events during quiet periods
         base_event_count = int(base_event_count * 1.20)
     if not audio_fusion:
-        # Without audio, ~10% more false positives (pure visual noise)
         base_event_count = int(base_event_count * 1.10)
 
-    # Build synthetic predicted events
     events = []
     step = duration_s / base_event_count if base_event_count > 0 else duration_s
     for i in range(base_event_count):
         t_start = i * step
-        t_end   = t_start + 2.0   # 2-second event duration
+        t_end   = t_start + 2.0
         events.append(Event(start=t_start, end=min(t_end, duration_s)))
 
     elapsed = 0.5   # mocked timing
@@ -111,10 +131,8 @@ def _mock_run_pipeline_for_ablation(
 
 
 def _build_mock_gt_events(video_path: str) -> list[Event]:
-    """
-    Generates mock ground-truth events (one suspicious event every ~5 seconds).
-    Replace with real annotation CSV loading when demo_clips ground truth is ready.
-    """
+    """Fallback synthetic GT (one event every ~5s) — used only when no
+    real ground_truth_events.csv path is supplied."""
     cap = cv2.VideoCapture(video_path)
     fps          = cap.get(cv2.CAP_PROP_FPS) or 25.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -139,51 +157,60 @@ def run_ablation(
     video_path: str,
     base_config: dict,
     gt_events: list[Event] | None = None,
+    gt_events_csv: str | None = None,
+    video_id: str | None = None,
     overlap_threshold: float = 0.50,
 ) -> list[dict]:
     """
     Runs the full ablation study for all axes and returns results.
 
+    GT precedence: explicit gt_events list > gt_events_csv (real,
+    ground_truth_events.csv) > mock GT (last resort, flag in report).
+
     Args:
         video_path        (str):         Path to input video.
         base_config       (dict):        Full config.yaml loaded as dict.
-        gt_events         (list[Event]): Ground-truth event annotations.
-                                         If None, uses mock GT.
-        overlap_threshold (float):       Temporal IoU threshold for event matching.
+        gt_events         (list[Event]): Pre-loaded GT, optional override.
+        gt_events_csv     (str):         Path to ground_truth_events.csv.
+        video_id          (str):         video_id to filter GT rows by.
+        overlap_threshold (float):       Temporal IoU threshold for matching.
 
     Returns:
         list[dict]: One result dict per ablation row.
     """
+    using_mock_gt = False
     if gt_events is None:
-        gt_events = _build_mock_gt_events(video_path)
+        if gt_events_csv:
+            gt_events = load_real_gt_events(gt_events_csv, video_id)
+        else:
+            gt_events = _build_mock_gt_events(video_path)
+            using_mock_gt = True
 
-    print(f"[ablation] GT events loaded: {len(gt_events)}")
+    gt_label = "MOCK" if using_mock_gt else "REAL"
+    print(f"[ablation] GT events loaded: {len(gt_events)} ({gt_label})")
     print(f"[ablation] Running {len(ABLATION_AXES)} ablation configurations...\n")
 
     rows = []
 
     for axis in ABLATION_AXES:
-        # Deep copy config so we don't mutate shared state
         cfg = copy.deepcopy(base_config)
 
-        # Toggle the ablated component off
         toggle = axis["toggle_key"]
         if toggle is not None:
             section, key = toggle
             if section in cfg:
                 cfg[section][key] = False
 
-        # Run pipeline (mock or real)
         t_start = time.time()
         pred_events, _ = _mock_run_pipeline_for_ablation(video_path, cfg)
         elapsed = time.time() - t_start
 
-        # Evaluate
         event_metrics = match_events(pred_events, gt_events, overlap_threshold)
 
         row = {
             "configuration":      axis["name"],
             "component_disabled": toggle[1] if toggle else "none",
+            "gt_source":          gt_label,
             "pred_events":        len(pred_events),
             "gt_events":          len(gt_events),
             "tp":                 event_metrics.tp_events,
@@ -199,13 +226,17 @@ def run_ablation(
         print(f"  [{axis['name']:<35}]  "
               f"F1={row['f1']:.4f}  P={row['precision']:.4f}  R={row['recall']:.4f}")
 
-    # Print F1 delta vs. baseline
     baseline_f1 = rows[0]["f1"]
     print(f"\n[ablation] F1 deltas vs. baseline (F1={baseline_f1:.4f}):")
     for r in rows[1:]:
         delta = r["f1"] - baseline_f1
         sign  = "+" if delta >= 0 else ""
         print(f"  Removing {r['component_disabled']:<25} -> F1 delta = {sign}{delta:.4f}")
+
+    if using_mock_gt:
+        print("\n[ablation] WARNING: results use MOCK ground truth — "
+              "do not present these as final numbers. Pass --gt-events "
+              "to use ground_truth_events.csv.")
 
     return rows
 
@@ -236,14 +267,21 @@ if __name__ == "__main__":
     import argparse
     import yaml
 
-    parser = argparse.ArgumentParser(description="P4 Ablation Study Runner")
-    parser.add_argument("--video",  required=True, help="Path to input video")
-    parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--out",    default="outputs/ablation_table.csv")
+    parser = argparse.ArgumentParser(description="P4/P2b Ablation Study Runner")
+    parser.add_argument("--video",      required=True, help="Path to input video")
+    parser.add_argument("--video-id",   default=None,  help="video_id matching ground_truth_events.csv")
+    parser.add_argument("--gt-events",  default=None,  help="Path to ground_truth_events.csv")
+    parser.add_argument("--config",     default="config.yaml")
+    parser.add_argument("--out",        default="outputs/ablation_table.csv")
     args = parser.parse_args()
 
     with open(args.config) as f:
         base_config = yaml.safe_load(f)
 
-    rows = run_ablation(args.video, base_config)
+    rows = run_ablation(
+        args.video,
+        base_config,
+        gt_events_csv=args.gt_events,
+        video_id=args.video_id,
+    )
     save_ablation_csv(rows, args.out)
