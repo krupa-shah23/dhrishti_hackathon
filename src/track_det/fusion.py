@@ -145,7 +145,9 @@ def fuse_track_detections(
     """
     tracks:      output of track(boxes) for THIS frame
                  [{"track_id": int, "box": (x1,y1,x2,y2)}, ...]
-    detections:  output of detect_objects(frame) for THIS frame
+    detections:  output of detect_objects(roi_crops_over_window, exam_mode)
+                 for this track's buffered window, translated to absolute
+                 frame coordinates by the caller
                  [((x1,y1,x2,y2), class_name, conf), ...]
     containment_thresh: minimum fraction of the detection box that must
                  fall inside a track's box to count as belonging to it.
