@@ -29,11 +29,11 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // ─── Core Middleware ───
-app.use(helmet());
-app.use(cors());
-app.use(morgan('dev'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: '*' }));
+app.use(morgan('tiny')); // Use tiny format — avoids logging large multipart bodies
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ─── Static files (thumbnails, heatmaps) ───
 app.use('/static', express.static(uploadsDir));
@@ -76,7 +76,10 @@ const start = async () => {
     console.warn('⚠️  Redis/BullMQ not available. Status worker not started:', err.message);
   }
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
+    // Increase timeouts so large video uploads don't get killed mid-transfer
+    server.keepAliveTimeout = 300000;   // 5 minutes
+    server.headersTimeout  = 310000;   // slightly higher than keepAlive
     console.log(`
 ╔══════════════════════════════════════════╗
 ║   🔱  DRISHTI Backend Server             ║

@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/stats', async (req, res, next) => {
   try {
     const [totalVideos, totalPersons, activityDistribution] = await Promise.all([
-      Video.countDocuments({ status: 'done' }),
+      Video.countDocuments({ status: { $in: ['done', 'archived'] } }),
       Person.countDocuments(),
       Event.aggregate([
         { $unwind: '$activities' },

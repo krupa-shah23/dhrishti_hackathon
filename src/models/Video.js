@@ -8,14 +8,14 @@ const videoSchema = new mongoose.Schema(
   {
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
-    filepath: { type: String, required: true },
+    filepath: { type: String, default: '' },  // cleared when archived/deleted from disk
     mimetype: { type: String, default: 'video/mp4' },
     size: { type: Number, default: 0 },            // bytes
     duration: { type: Number, default: null },       // seconds (populated by ML)
     fps: { type: Number, default: null },            // frames per second (populated by ML)
     status: {
       type: String,
-      enum: ['uploading', 'queued', 'ingesting', 'detecting', 'tracking', 'scoring', 'done', 'failed'],
+      enum: ['uploading', 'queued', 'ingesting', 'detecting', 'tracking', 'scoring', 'done', 'failed', 'archived'],
       default: 'uploading',
     },
     processingStage: { type: String, default: null },  // e.g. "Stage 3/8 – ByteTrack"
@@ -24,6 +24,7 @@ const videoSchema = new mongoose.Schema(
     // Paths to ML output artifacts
     trackingDataPath: { type: String, default: null },  // JSON file with per-frame bboxes
     heatmapPath: { type: String, default: null },       // heatmap image path
+    xaiSummary: { type: String, default: null },        // AI generated summary of the video incidents
   },
   {
     timestamps: true,  // createdAt, updatedAt

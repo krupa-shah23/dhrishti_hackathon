@@ -4,7 +4,7 @@
   "description": "DRISHTI AI Video Analytics - Node.js API Server",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "nodemon --ignore uploads/ src/server.js",
     "start": "node src/server.js",
     "seed": "node src/scripts/seed.js"
   },

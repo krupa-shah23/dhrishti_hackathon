@@ -1,15 +1,24 @@
 /**
  * Multer configuration for video uploads.
  * Stores files in the uploads/ directory with unique filenames.
+ * Uses disk storage (not memory) so large files stream directly to disk.
  */
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config');
 
+// Ensure upload directory exists before multer tries to write to it
+const uploadDir = path.resolve(config.uploadDir);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log(`📁  Created upload directory: ${uploadDir}`);
+}
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, config.uploadDir);
+    cb(null, uploadDir);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);

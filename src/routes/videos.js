@@ -18,12 +18,60 @@ const config = require('../config');
 const router = express.Router();
 
 // ─── GET /api/videos ───
-// Returns all videos, sorted newest first.
+// Returns all non-archived videos, sorted newest first.
 // Frontend: populates the Upload Manager page slots.
 router.get('/', async (req, res, next) => {
   try {
-    const videos = await Video.find().sort({ createdAt: -1 });
+    // Exclude archived — they've been deleted from disk and freed their slot
+    const videos = await Video.find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 });
     res.json({ success: true, count: videos.length, data: videos });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/videos/register ───
+// Lightweight registration: stores metadata only, NO file upload.
+// The frontend can call this immediately after the user selects a file,
+// then the ML service fetches/processes separately — making upload feel instant.
+router.post('/register', async (req, res, next) => {
+  try {
+    const activeCount = await Video.countDocuments({
+      status: { $nin: ['failed', 'archived'] },
+    });
+    if (activeCount >= config.maxVideoSlots) {
+      const err = new Error(`Maximum ${config.maxVideoSlots} video slots are in use. Delete a video first.`);
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const { originalName, size, mimetype } = req.body;
+    if (!originalName) {
+      const err = new Error('originalName is required.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Use a placeholder filename; filepath is empty until ML pulls the file
+    const video = await Video.create({
+      filename: originalName,
+      originalName,
+      filepath: '',
+      mimetype: mimetype || 'video/mp4',
+      size: size || 0,
+      status: 'queued',
+    });
+
+    // Launch mock pipeline asynchronously
+    try {
+      const { executeMockPipeline } = require('../queues/mockPipeline');
+      executeMockPipeline(video._id);
+      console.log(`📤  Started mock pipeline for registered video: ${originalName}`);
+    } catch (pipelineErr) {
+      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+    }
+
+    res.status(201).json({ success: true, data: video });
   } catch (err) {
     next(err);
   }
@@ -35,7 +83,7 @@ router.post('/upload', upload.single('video'), async (req, res, next) => {
   try {
     // Enforce max video slot constraint
     const activeCount = await Video.countDocuments({
-      status: { $nin: ['failed'] },
+      status: { $nin: ['failed', 'archived'] },
     });
     if (activeCount >= config.maxVideoSlots) {
       // Clean up the file that was already saved by multer
@@ -62,27 +110,13 @@ router.post('/upload', upload.single('video'), async (req, res, next) => {
       status: 'queued',
     });
 
-    // Push ML processing job to BullMQ
+    // Launch in-memory mock pipeline directly (bypassing Redis/BullMQ for local dev)
     try {
-      const { mlQueue } = require('../queues');
-      const { Setting } = require('../models');
-      const seatGridSetting = await Setting.findOne({ key: 'seatGrid' });
-
-      await mlQueue.add('process-video', {
-        videoId: video._id.toString(),
-        filepath: video.filepath,
-        filename: video.originalName,
-        seatGrid: seatGridSetting ? seatGridSetting.value : null,
-      }, {
-        attempts: 2,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: true,
-        removeOnFail: false,
-      });
-      console.log(`📤  Queued ML job for video: ${video.originalName}`);
-    } catch (queueErr) {
-      console.warn('⚠️  Redis/BullMQ unavailable, ML job not queued:', queueErr.message);
-      // Video is still saved — can be manually requeued later
+      const { executeMockPipeline } = require('../queues/mockPipeline');
+      executeMockPipeline(video._id); // Run asynchronously
+      console.log(`📤  Started mock pipeline for video: ${video.originalName}`);
+    } catch (pipelineErr) {
+      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
     }
 
     res.status(201).json({ success: true, data: video });
@@ -107,7 +141,9 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ─── DELETE /api/videos/:id ───
-// Deletes the video record AND the file from disk.
+// Archives the video record AND deletes the file from disk.
+// This frees up the upload slot (since GET /api/videos excludes archived)
+// but keeps the record in the DB so 'Total Videos Processed' count is preserved.
 router.delete('/:id', async (req, res, next) => {
   try {
     const video = await Video.findById(req.params.id);
@@ -117,18 +153,22 @@ router.delete('/:id', async (req, res, next) => {
       throw err;
     }
 
-    // Delete file from disk
+    // Delete video file from disk
     if (video.filepath && fs.existsSync(video.filepath)) {
-      fs.unlinkSync(video.filepath);
+      try { fs.unlinkSync(video.filepath); } catch (_) {}
     }
 
-    // Delete tracking data file if it exists
+    // Delete tracking data file from disk
     if (video.trackingDataPath && fs.existsSync(video.trackingDataPath)) {
-      fs.unlinkSync(video.trackingDataPath);
+      try { fs.unlinkSync(video.trackingDataPath); } catch (_) {}
     }
 
-    await Video.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Video deleted' });
+    // Archive the video instead of deleting it
+    video.status = 'archived';
+    video.filepath = ''; // Clear file path since it's deleted from disk
+    await video.save();
+
+    res.json({ success: true, message: 'Video deleted and slot freed (archived for stats).' });
   } catch (err) {
     next(err);
   }
@@ -222,21 +262,13 @@ router.post('/:id/requeue', async (req, res, next) => {
     video.errorMessage = null;
     await video.save();
 
-    const { mlQueue } = require('../queues');
-    const { Setting } = require('../models');
-    const seatGridSetting = await Setting.findOne({ key: 'seatGrid' });
-
-    await mlQueue.add('process-video', {
-      videoId: video._id.toString(),
-      filepath: video.filepath,
-      filename: video.originalName,
-      seatGrid: seatGridSetting ? seatGridSetting.value : null,
-    }, {
-      attempts: 2,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: true,
-      removeOnFail: false,
-    });
+    // Launch in-memory mock pipeline directly
+    try {
+      const { executeMockPipeline } = require('../queues/mockPipeline');
+      executeMockPipeline(video._id);
+    } catch (pipelineErr) {
+      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+    }
 
     res.json({ success: true, message: 'Video requeued for processing', data: video });
   } catch (err) {
