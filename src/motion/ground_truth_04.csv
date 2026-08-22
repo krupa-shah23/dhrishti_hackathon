@@ -1,0 +1,6 @@
+clip_id,event_type,start_sec,end_sec,notes
+04_candidate_talking.mkv,gaze_shift,0.0,3.0,"looking here and there before talking; faces not visible, inferred from hand/head movement"
+04_candidate_talking.mkv,talking,3.0,12.0,"starts talking to other candidate; faces not visible, inferred from hand/head movement"
+04_candidate_talking.mkv,talking,72.0,87.0,"second pair talking, backs to camera, inferred from hand/head movement"
+04_candidate_talking.mkv,talking,97.0,102.0,"initiator of second pair talking again, looking at other's screen; faces not visible, inferred from hand/head movement"
+04_candidate_talking.mkv,talking,140.0,143.0,"talking again till end of clip; faces not visible, inferred from hand/head movement"

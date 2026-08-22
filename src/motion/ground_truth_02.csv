@@ -1,0 +1,5 @@
+clip_id,event_type,start_sec,end_sec,notes
+02_phone_use.mkv,scene_setup,0.0,190.0,3 people enter; 2 students + 1 exam setup guy; setup goes till 3:10; prior-timeline video of clip_02
+02_phone_use.mkv,setup_exit,190.0,190.0,setup guy leaves scene; prior-timeline video of clip_02
+02_phone_use.mkv,gaze_shift,0.0,206.0,accused looking here and there before taking phone; prior-timeline video of clip_02
+02_phone_use.mkv,phone_use,206.0,206.0,"accused takes phone from pocket, no copying; prior-timeline video of clip_02"

@@ -1,3 +1,7 @@
 clip_id,event_type,start_sec,end_sec,notes
-07_seat_exchange.mkv,seat_exchange,4391.0,4400.0,seat exchange
-07_seat_exchange.mkv,intervention,4406.0,4415.0,guard check-in
+07_seat_exchange.mkv,gaze_shift,4260.0,4260.0,girl starts looking here and there
+07_seat_exchange.mkv,talking,4338.0,4338.0,"start talking, looking at each other, discussing seat exchange"
+07_seat_exchange.mkv,pc_movement,4358.0,4358.0,girl moves pc ahead so he can see
+07_seat_exchange.mkv,seat_exchange,4391.0,4400.0,seat exchange; they get up to exchange seats
+07_seat_exchange.mkv,intervention,4406.0,4415.0,guard check-in; guard comes to check in
+07_seat_exchange.mkv,candidate_exit,4471.0,4471.0,they are asked to leave the room
