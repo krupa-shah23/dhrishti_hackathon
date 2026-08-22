@@ -8,9 +8,12 @@ This module provides:
 3. link_related_events(): links events that share spatial origin and are temporally close.
 
 Signal format P3 expects (verified against P3's API contract):
-    avg_motion_intensity    float [0-1]: mean per-seat motion over event duration
-    peak_intensity          float [0-1]: max per-seat motion in any single frame
-    mog2_foreground_ratio   float [0-1]: fraction of event frames that had >0 foreground
+    avg_motion_intensity    float [0-1]: mean FUSED (MOG2 OR frame-diff) motion
+                             intensity over the event's frames (whole-frame, not
+                             literally per-seat -- see §B item 1 in DRISHTI_PA_DONE.md)
+    peak_intensity          float [0-1]: max of the same fused signal in any single frame
+    mog2_foreground_ratio   float [0-1]: fraction of foreground pixels in MOG2's OWN
+                             mask, pre-fusion (distinct signal from the two above)
     invigilator_excluded    bool: True if the motion source was identified as the invigilator
     intervention_detected   bool: True if guard check-in fired during this event
     event_type              str:  'phone_use'|'chit_use'|'seat_vacancy'|'talking'|'unknown'
@@ -18,6 +21,21 @@ Signal format P3 expects (verified against P3's API contract):
 These fields are computed from the p2_p3_bridge event output + optional motion_stats
 dict passed in from the frame pipeline. Where motion stats are unavailable (e.g. in
 unit tests), safe defaults are used.
+
+§6 motion-metric contract (Phase 1 lock): as of this session, P2P3Bridge's
+finalized event dict exposes genuine per-frame series --
+event["motion_intensities"] (fused mask) and event["mog2_ratios"] (MOG2-only
+mask, pre-fusion) -- computed from real per-frame measurements
+(P1P2TrackerPipeline.process_frame()'s "motion_intensity"/"mog2_foreground_ratio"
+return values). A caller can now build a genuine motion_stats dict via
+avg()/max() over these lists instead of a placeholder. As of this same
+session, scripts/verification/*.py and src/motion/{ablation_study,
+benchmark_stages}.py still pass either a hardcoded mog2_foreground_ratio
+(1.0 or 0.0, not a real measurement) or omit motion_stats entirely (all three
+fields default to 0.0) -- deliberately left unchanged here since rewiring
+them would alter already-validated, previously-published results (see
+DRISHTI_PA_DONE.md) without independent re-verification. Flagged as a Phase 2
+follow-up, not fixed silently.
 """
 
 from __future__ import annotations

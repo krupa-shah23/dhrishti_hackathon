@@ -7,6 +7,21 @@ except ImportError:
     from ..motion.severity_scoring import compute_severity, score_to_risk_label
     from ..motion.heuristics import flag_seat_vacant_near_invigilator, build_explanation
 
+# §5 person-ID contract (Phase 1 lock): the only identity concept this bridge
+# (or anything upstream of it -- CentroidTracker in src/track_det/tracker.py)
+# produces is `track_id`: an int, transient per-clip, reassigned from 1 on
+# every P1P2TrackerPipeline.reset()/new video, and NOT stable across a
+# ROI-free gap longer than the tracker's max_age (a departing-and-returning
+# subject gets a NEW track_id, per test_p1_p2_live.py's own long-gap case).
+# There is no persistent person_id / cross-video / cross-camera identity
+# anywhere in this pipeline, and no Re-ID is implemented. Fields named
+# person_id/person_ids appear only in Person B's own speculative mock test
+# payloads (test_complete_signal.py, test_idempotent_event_id.py) for a
+# backend endpoint contract that does not consume this bridge's real output
+# -- they are not wired to anything here. Any future backend/API layer that
+# needs person_id should treat it as an alias of this event's `track_id`,
+# scoped per-video, with the transience above made explicit to callers --
+# not a signal of persistent identity.
 class P2P3Bridge:
     def __init__(self, missing_threshold: int = 30, fps: float = 30.0, audio_path: Optional[str] = None,
                  camera_id: Optional[str] = None):
@@ -34,6 +49,7 @@ class P2P3Bridge:
         frame_index: int,
         pose_signals: Optional[Dict[int, List[str]]] = None,
         motion_intensity: Optional[float] = None,
+        mog2_foreground_ratio: Optional[float] = None,
     ):
         """
         Parameters
@@ -83,7 +99,8 @@ class P2P3Bridge:
                     "is_invigilator": False,
                     "metadata": [],
                     "pose_activities": [],  # accumulated pose/gesture signals for this track
-                    "motion_intensities": [],  # per-frame motion intensity (fraction of pixels)
+                    "motion_intensities": [],  # per-frame fused-mask motion intensity (fraction of pixels)
+                    "mog2_ratios": [],  # per-frame MOG2-only foreground ratio (§6), pre-fusion
                     # seat_id_counts: per-seat frame-count for dominant-seat logic (Bug 3 fix).
                     # A track that temporarily grows into an adjacent seat's pixel region
                     # should not be attributed to that seat permanently.
@@ -111,6 +128,10 @@ class P2P3Bridge:
             # Accumulate per-frame motion intensity for severity scoring (§3.7)
             if motion_intensity is not None:
                 track_data["motion_intensities"].append(float(motion_intensity))
+
+            # Accumulate per-frame MOG2-only foreground ratio (§6 motion-metric contract)
+            if mog2_foreground_ratio is not None:
+                track_data["mog2_ratios"].append(float(mog2_foreground_ratio))
 
             if is_invigilator:
                 track_data["is_invigilator"] = True
@@ -249,6 +270,13 @@ class P2P3Bridge:
             # seat_ids: dominant seat regions for this track (seats seen in >25% of frames).
             # Uses per-seat frame-count logic to prevent transient box-growth bleed.
             "seat_ids": dominant_seats,
+            # §6 motion-metric contract — raw per-frame series, exposed so
+            # enrich_event_with_motion_fields() callers can compute genuine
+            # avg_motion_intensity/peak_intensity/mog2_foreground_ratio instead
+            # of a hardcoded placeholder. Previously only reachable by
+            # monkey-patching _finalize_track (see scripts/verification/*.py).
+            "motion_intensities": list(intensities),
+            "mog2_ratios": list(track_data.get("mog2_ratios", [])),
             # §9 integration contract — severity fields
             "severity_score": severity_score,
             "risk_label": risk_label,

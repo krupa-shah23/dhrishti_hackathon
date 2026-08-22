@@ -12,6 +12,24 @@ FRAME -> P1 get_motion_mask(frame) -> P1 get_rois(mask) -> P2 track(boxes) -> tr
                                                                                 │
                                                                                 ▼
                                                                      P2 invigilator_filter -> enriched fused_tracks
+
+§4 coordinate contract (Phase 1 lock): process_frame() performs NO implicit
+resize. Every ROI/track/detection/event coordinate this module produces is in
+the SAME resolution as the `frame` array the caller passed in -- which, for
+every real caller in this repo (process_video_live(), the verification
+scripts under scripts/verification/, ablation_study.py, benchmark_stages.py),
+is the ORIGINAL/NATIVE resolution read straight from cv2.VideoCapture, since
+none of them route frames through frame_stream.py's 480p downsize step first.
+Native resolution varies by camera/clip (e.g. 640x480 for
+04_candidate_talking.mkv vs 1280x720 for most other clips) -- there is no
+single fixed "processing resolution" to assume. Seat-grid attribution
+(grid_config.get_grid_config()) already scales correctly to whatever
+w_img/h_img the mask/frame actually has, so this holds regardless of which
+camera/clip is being processed. Any future consumer of these coordinates
+(bbox_overlay, a frontend overlay, etc.) must read the resolution from the
+same per-video metadata already tracked in manifest.csv/get_video_metadata(),
+not assume 480p or any other fixed size. See
+test_p1_p2_live.py::test_process_frame_uses_native_input_resolution_no_implicit_resize.
 """
 
 from typing import List, Dict, Any, Tuple, Optional, Generator
@@ -75,9 +93,20 @@ class P1P2TrackerPipeline:
         max_distance: Optional[float] = None,
         max_age: Optional[int] = None,
         containment_thresh: float = 0.5,
+        fps: float = 25.0,
     ):
         self.clip_name = clip_name
         self.exam_mode = "CBT"
+        # Real source fps for this clip, used for PoseGestureAnalyzer's internal
+        # timestamp_sec math (frame_index / fps). Defaults to 25.0 -- the value
+        # every existing caller relied on implicitly before this parameter
+        # existed -- so behavior is unchanged unless a caller opts in with the
+        # clip's real fps (see get_video_metadata()/cap.get(cv2.CAP_PROP_FPS)).
+        # Non-25fps clips (e.g. 04_candidate_talking.mkv @8fps,
+        # 07_seat_exchange.mkv @22fps) get wrong pose/gesture timing until a
+        # caller passes the real value here -- tracked as a Phase 2 follow-up,
+        # not silently changed now (would alter already-validated §3.6 output).
+        self.fps = fps
 
         if clip_name:
             manifest_path = Path("data/drishti/manifest.csv")
@@ -122,7 +151,7 @@ class P1P2TrackerPipeline:
 
         # Stage C: Pose/Gesture analyzer (§3.6). Initialized once per clip.
         # PoseGestureAnalyzer is stateful — do NOT re-create per frame.
-        self.pose_analyzer = PoseGestureAnalyzer(fps=25.0)  # 25fps default; real fps unknown at init
+        self.pose_analyzer = PoseGestureAnalyzer(fps=self.fps)
         # Accumulate all pose signals seen per track_id over its lifetime.
         # List of signal strings; merged into activities[] at track finalization.
         self.pose_signal_buffer: Dict[int, List[str]] = collections.defaultdict(list)
@@ -152,6 +181,7 @@ class P1P2TrackerPipeline:
             # real intensity value to report. Matches the frame-is-None branch
             # below, which makes the same choice for the same reason.
             frame_motion_intensity = 0.0
+            frame_mog2_ratio = 0.0
         elif frame is not None:
             if camera_id is not None:
                 h, w = frame.shape[:2]
@@ -163,6 +193,14 @@ class P1P2TrackerPipeline:
             from src.motion.motion import fuse_motion_signal, motion_intensity as _motion_intensity
             fused_mask = fuse_motion_signal(mag_map, mask)
             frame_motion_intensity = _motion_intensity(fused_mask)
+            # §6 motion-metric contract: `mask` here is MOG2's own cleaned binary
+            # output, before the OR-fusion with frame-diff above. This is the
+            # only point in the pipeline where the genuine MOG2-only signal is
+            # still distinguishable from the fused one, so this is the correct
+            # layer to compute a real mog2_foreground_ratio (fraction of frame
+            # pixels MOG2 itself flagged as foreground) rather than faking one
+            # from the fused mask downstream.
+            frame_mog2_ratio = _motion_intensity(mask)
             tagged_rois = get_rois(
                 fused_mask,
                 min_area=self.min_area,
@@ -177,6 +215,7 @@ class P1P2TrackerPipeline:
         else:
             boxes = []
             frame_motion_intensity = 0.0
+            frame_mog2_ratio = 0.0
 
         # 2. Track (MUST be called on every frame including empty boxes)
         tracks = track(boxes)
@@ -220,7 +259,7 @@ class P1P2TrackerPipeline:
             pose_signals_this_frame = self.pose_analyzer.update(
                 frame_index=frame_index,
                 crops_by_tid=latest_crops,
-                timestamp_sec=frame_index / 25.0,
+                timestamp_sec=frame_index / self.fps,
                 track_boxes=track_boxes
             )
             for tid, sigs in pose_signals_this_frame.items():
@@ -292,6 +331,12 @@ class P1P2TrackerPipeline:
             # motion_intensity: per-frame foreground-pixel fraction (0-1); pass to
             # P2P3Bridge.process_fused_tracks(motion_intensity=...) for severity scoring.
             "motion_intensity": frame_motion_intensity,
+            # mog2_foreground_ratio: per-frame MOG2-only foreground-pixel fraction
+            # (0-1), measured before OR-fusion with frame-diff. Pass to
+            # P2P3Bridge.process_fused_tracks(mog2_foreground_ratio=...) so the
+            # §6 event field of the same name can be computed from a genuine
+            # measurement instead of a placeholder constant.
+            "mog2_foreground_ratio": frame_mog2_ratio,
         }
 
     def reset(self, max_distance: Optional[float] = None, max_age: Optional[int] = None):
@@ -302,7 +347,7 @@ class P1P2TrackerPipeline:
         self.track_crop_buffer.clear()
         self.pose_signal_buffer.clear()
         self.pose_analyzer.close()
-        self.pose_analyzer = PoseGestureAnalyzer(fps=25.0)
+        self.pose_analyzer = PoseGestureAnalyzer(fps=self.fps)
         reset_tracker(max_distance=max_distance, max_age=max_age)
 
 
