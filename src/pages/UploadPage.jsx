@@ -49,7 +49,8 @@ export default function UploadPage() {
 
   const handleUpload = async (file) => {
     if (!file) return;
-    if (videos.length >= 3) {
+    const activeCount = videos.filter(v => !['failed'].includes(v.status)).length;
+    if (activeCount >= 3) {
       alert('Maximum 3 videos allowed. Delete a video first.');
       return;
     }
@@ -57,11 +58,13 @@ export default function UploadPage() {
     try {
       setUploading(true);
       setUploadProgress(0);
-      await videoApi.upload(file, setUploadProgress);
+      // Register the video by metadata only — no file transfer, near-instant
+      await videoApi.register(file);
+      setUploadProgress(100);
       await fetchVideos();
     } catch (err) {
       const msg = err.response?.data?.error || err.message;
-      alert(`Upload failed: ${msg}`);
+      alert(`Registration failed: ${msg}`);
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -121,11 +124,9 @@ export default function UploadPage() {
         {uploading ? (
           <>
             <Loader size={48} className="drop-zone-icon" style={{ animation: 'spin 1s linear infinite' }} />
-            <div className="drop-zone-title">Uploading... {uploadProgress}%</div>
-            <div style={{ width: '60%', margin: '12px auto 0' }}>
-              <div className="progress-bar-container" style={{ height: 8 }}>
-                <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
-              </div>
+            <div className="drop-zone-title">Registering video...</div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>
+              This only takes a moment — no file transfer needed
             </div>
           </>
         ) : (
@@ -147,7 +148,8 @@ export default function UploadPage() {
             video={video}
             onDelete={handleDelete}
             onRequeue={handleRequeue}
-            onView={() => navigate(`/videos/${video._id}`)}
+            onViewAnalysis={() => navigate(`/analysis/${video._id}`)}
+            onViewVideo={() => navigate(`/videos/${video._id}`)}
           />
         ))}
 
@@ -177,7 +179,7 @@ export default function UploadPage() {
   );
 }
 
-function VideoSlotCard({ video, onDelete, onRequeue, onView }) {
+function VideoSlotCard({ video, onDelete, onRequeue, onViewAnalysis, onViewVideo }) {
   const isProcessing = ['queued', 'ingesting', 'detecting', 'tracking', 'scoring'].includes(video.status);
   const isDone = video.status === 'done';
   const isFailed = video.status === 'failed';
@@ -232,10 +234,15 @@ function VideoSlotCard({ video, onDelete, onRequeue, onView }) {
         )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {isDone && (
-            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={onView}>
-              <Play size={14} /> View
+            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={onViewAnalysis}>
+              <Play size={14} /> Analysis Report
+            </button>
+          )}
+          {isDone && (
+            <button className="btn btn-ghost btn-sm" onClick={onViewVideo} title="Review raw video">
+              <Play size={14} />
             </button>
           )}
           {isFailed && (

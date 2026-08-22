@@ -1,8 +1,0 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Bell, CalendarDays, History, LayoutDashboard, Search, ShieldCheck, UploadCloud } from 'lucide-react'; // shared app shell icons
-const nav = [{to:'/',label:'Overview',icon:LayoutDashboard,end:true},{to:'/upload',label:'Upload',icon:UploadCloud},{to:'/previous-records',label:'Previous Records',icon:History}];
-export default function AppLayout() {
-  const { pathname } = useLocation();
-  const active = (item) => item.to === '/upload' ? pathname.startsWith('/upload') || pathname.startsWith('/processing') : item.to === '/previous-records' ? pathname.startsWith('/previous-records') || pathname.startsWith('/analysis') : pathname === '/';
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><ShieldCheck size={25}/></div><div><strong>Wireframe</strong><span>SURVEILLANCE SUITE</span></div></div><nav>{nav.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} className={() => `nav-link ${active({to}) ? 'active' : ''}`}><Icon size={19}/>{label}</NavLink>)}</nav><div className="system-status"><span className="online-dot"/>All systems operational</div></aside><main className="main"><header className="topbar"><label className="global-search"><Search size={18}/><input aria-label="Search records" placeholder="Search records, IDs..."/></label><div className="top-actions"><button className="date-chip"><CalendarDays size={16}/>Oct 24, 2023</button><button className="icon-button" aria-label="Notifications"><Bell size={18}/></button><div className="avatar">A</div></div></header><section className="page"><Outlet /></section></main></div>;
-}

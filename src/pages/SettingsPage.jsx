@@ -1,14 +1,67 @@
 /**
  * DRISHTI — Settings Page (/settings)
- * Seat-grid calibration, thresholds, and toggles.
+ * Seat-grid calibration, XAI toggle, thresholds — all wired to backend /api/settings
  */
-import { Settings as SettingsIcon, Save } from 'lucide-react';
-import { useState } from 'react';
+import { Settings as SettingsIcon, Save, Loader } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { settingsApi } from '../api/client';
 
 export default function SettingsPage() {
   const [confidenceThreshold, setConfidenceThreshold] = useState(65);
-  const [privacyDefault, setPrivacyDefault] = useState(false);
+  const [xaiEnabled, setXaiEnabled] = useState(false);
   const [maxVideos, setMaxVideos] = useState(3);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load saved settings from backend on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [threshRes, xaiRes, slotsRes] = await Promise.all([
+          settingsApi.get('confidenceThreshold'),
+          settingsApi.get('xaiToggle'),
+          settingsApi.get('maxVideoSlots'),
+        ]);
+        if (threshRes.data.data !== null) setConfidenceThreshold(threshRes.data.data);
+        if (xaiRes.data.data !== null) setXaiEnabled(xaiRes.data.data);
+        if (slotsRes.data.data !== null) setMaxVideos(slotsRes.data.data);
+      } catch (err) {
+        console.warn('Could not load settings from backend:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setSaved(false);
+      await Promise.all([
+        settingsApi.save('confidenceThreshold', confidenceThreshold),
+        settingsApi.save('xaiToggle', xaiEnabled),
+        settingsApi.save('maxVideoSlots', maxVideos),
+      ]);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      alert('Failed to save settings. Make sure the backend is running.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner" />
+        <span>Loading settings...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="slide-up">
@@ -57,26 +110,27 @@ export default function SettingsPage() {
               </select>
             </div>
 
+            {/* XAI Toggle — wired to backend */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>Privacy Mode Default</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>AI Summary (XAI)</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Blur non-flagged faces by default in video review
+                  Enable Gemini AI to generate incident summaries. Disable for offline/privacy mode.
                 </div>
               </div>
               <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
                 <input
-                  type="checkbox" checked={privacyDefault}
-                  onChange={(e) => setPrivacyDefault(e.target.checked)}
+                  type="checkbox" checked={xaiEnabled}
+                  onChange={(e) => setXaiEnabled(e.target.checked)}
                   style={{ opacity: 0, width: 0, height: 0 }}
                 />
                 <span style={{
                   position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                  background: privacyDefault ? 'var(--accent-blue)' : 'var(--border-medium)',
+                  background: xaiEnabled ? 'var(--accent-blue)' : 'var(--border-medium)',
                   borderRadius: 'var(--radius-full)', cursor: 'pointer', transition: 'all 200ms',
                 }}>
                   <span style={{
-                    position: 'absolute', left: privacyDefault ? 22 : 2, top: 2,
+                    position: 'absolute', left: xaiEnabled ? 22 : 2, top: 2,
                     width: 20, height: 20, background: 'white',
                     borderRadius: '50%', transition: 'all 200ms',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
@@ -106,9 +160,15 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary">
-          <Save size={16} /> Save Settings
+      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+        {saved && (
+          <span style={{ fontSize: 14, color: 'var(--accent-green)', fontWeight: 500 }}>
+            ✓ Settings saved!
+          </span>
+        )}
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+          {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
     </div>

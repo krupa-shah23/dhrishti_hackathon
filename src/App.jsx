@@ -1,48 +1,49 @@
-/**
- * DRISHTI — Main Application with Routing
- */
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
+import AnalysisReport from './pages/AnalysisReport';
 import IncidentsPage from './pages/IncidentsPage';
-import VideoReviewPage from './pages/VideoReviewPage';
 import PersonsPage from './pages/PersonsPage';
 import PersonProfilePage from './pages/PersonProfilePage';
-import HeatmapPage from './pages/HeatmapPage';
-import ReportsPage from './pages/ReportsPage';
+import VideoReviewPage from './pages/VideoReviewPage';
 import SettingsPage from './pages/SettingsPage';
-import AuditPage from './pages/AuditPage';
+import PreviousRecords from './pages/PreviousRecords';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<AppLayout />}>
-          {/* Default redirect */}
-          <Route index element={<Navigate to="/dashboard" replace />} />
+    <Routes>
+      <Route element={<AppLayout />}>
+        {/* Dashboard */}
+        <Route path="/" element={<DashboardPage />} />
 
-          {/* Core Pages */}
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="videos" element={<UploadPage />} />
-          <Route path="videos/:videoId" element={<VideoReviewPage />} />
-          <Route path="incidents" element={<IncidentsPage />} />
-          <Route path="persons" element={<PersonsPage />} />
-          <Route path="persons/:personId" element={<PersonProfilePage />} />
-          <Route path="heatmap" element={<HeatmapPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="audit" element={<AuditPage />} />
+        {/* Upload Manager — real backend UploadPage */}
+        <Route path="/upload" element={<UploadPage />} />
 
-          {/* 404 */}
-          <Route path="*" element={
-            <div className="empty-state" style={{ minHeight: '60vh' }}>
-              <div className="empty-state-title" style={{ fontSize: 48 }}>404</div>
-              <div className="empty-state-text">Page not found</div>
-            </div>
-          } />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+        {/* Analysis Report — video ID from backend MongoDB _id */}
+        <Route path="/analysis/:videoId" element={<AnalysisReport />} />
+
+        {/* Incidents — live events table with XAI summary */}
+        <Route path="/incidents" element={<IncidentsPage />} />
+
+        {/* Persons */}
+        <Route path="/persons" element={<PersonsPage />} />
+        <Route path="/persons/:id" element={<PersonProfilePage />} />
+
+        {/* Video Review / Canvas Overlay */}
+        <Route path="/videos/:id" element={<VideoReviewPage />} />
+
+        {/* Settings */}
+        <Route path="/settings" element={<SettingsPage />} />
+
+        {/* Previous Records (keep for historical mock review) */}
+        <Route path="/previous-records" element={<PreviousRecords />} />
+
+        {/* Redirects */}
+        <Route path="/upload/*" element={<Navigate to="/upload" replace />} />
+        <Route path="/analysis" element={<Navigate to="/upload" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   );
 }
