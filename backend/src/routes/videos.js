@@ -14,8 +14,78 @@ const path = require('path');
 const { Video } = require('../models');
 const upload = require('../middleware/upload');
 const config = require('../config');
+const { getActiveVideoCount, getFreeDiskMB } = require('../services/uploadGuards');
+const { processUploadedFile, describeError, withTimeout } = require('../services/uploadPipeline');
 
 const router = express.Router();
+
+// Runs BEFORE multer touches the request body, so an over-capacity upload is
+// rejected without ever parsing the multipart body or writing a file to disk.
+const checkSlotAvailable = async (req, res, next) => {
+  try {
+    const activeCount = await getActiveVideoCount();
+    if (activeCount >= config.maxVideoSlots) {
+      res.status(409).json({
+        success: false,
+        error: `Maximum ${config.maxVideoSlots} video slots are in use. Delete a video first.`,
+      });
+      // Stop the client from continuing to stream the file body into the void.
+      res.on('finish', () => req.destroy());
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Runs BEFORE multer, alongside checkSlotAvailable — rejects fast if the
+// upload volume doesn't have enough headroom, before any bytes are written.
+const checkDiskSpaceAvailable = async (req, res, next) => {
+  try {
+    const freeMB = await getFreeDiskMB();
+    if (freeMB < config.minFreeDiskMB) {
+      console.error(`❌  Rejecting upload — only ${freeMB}MB free on upload volume, need at least ${config.minFreeDiskMB}MB.`);
+      res.status(507).json({
+        success: false,
+        error: `Insufficient storage: only ${freeMB}MB free, need at least ${config.minFreeDiskMB}MB.`,
+      });
+      res.on('finish', () => req.destroy());
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Wraps multer so a write failure mid-transfer (e.g. disk fills up despite
+// the precheck, from a concurrent upload) is caught here instead of falling
+// through to the route handler with a half-written file and no req.file.
+const uploadSingleVideo = (req, res, next) => {
+  upload.single('video')(req, res, (err) => {
+    if (!err) return next();
+
+    // Clean up whatever multer managed to write before it failed.
+    if (req._pendingUploadFilename) {
+      const partialPath = path.join(path.resolve(config.uploadDir), req._pendingUploadFilename);
+      if (fs.existsSync(partialPath)) {
+        fs.unlinkSync(partialPath);
+        console.warn(`🧹  Cleaned up partial upload after write error: ${partialPath}`);
+      }
+    }
+
+    const reason = describeError(err);
+    const isDiskFull = err.code === 'ENOSPC' || /ENOSPC|no space left/i.test(reason);
+    if (isDiskFull) {
+      console.error(`❌  Disk filled up mid-write, rejecting upload: ${reason}`);
+      return res.status(507).json({ success: false, error: `Insufficient storage while writing the file: ${reason}` });
+    }
+
+    err.statusCode = err.statusCode || 400;
+    next(err);
+  });
+};
 
 // ─── GET /api/videos ───
 // Returns all videos, sorted newest first.
@@ -30,62 +100,43 @@ router.get('/', async (req, res, next) => {
 });
 
 // ─── POST /api/videos/upload ───
-// Accepts a single video file. Enforces max 3 active video slots.
-router.post('/upload', upload.single('video'), async (req, res, next) => {
+// Accepts a single video file. Enforces max 3 active video slots and a
+// minimum-free-disk-space floor — both checked before multer parses the
+// body, so a rejected request never hits disk.
+router.post('/upload', checkSlotAvailable, checkDiskSpaceAvailable, uploadSingleVideo, async (req, res, next) => {
   try {
-    // Enforce max video slot constraint
-    const activeCount = await Video.countDocuments({
-      status: { $nin: ['failed'] },
-    });
-    if (activeCount >= config.maxVideoSlots) {
-      // Clean up the file that was already saved by multer
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
-      }
-      const err = new Error(`Maximum ${config.maxVideoSlots} video slots are in use. Delete a video first.`);
-      err.statusCode = 409;
-      throw err;
-    }
-
     if (!req.file) {
       const err = new Error('No video file provided.');
       err.statusCode = 400;
       throw err;
     }
 
-    const video = await Video.create({
+    const result = await processUploadedFile({
+      filepath: req.file.path,
       filename: req.file.filename,
       originalName: req.file.originalname,
-      filepath: req.file.path,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      status: 'queued',
     });
 
-    // Push ML processing job to BullMQ
-    try {
-      const { mlQueue } = require('../queues');
-      const { Setting } = require('../models');
-      const seatGridSetting = await Setting.findOne({ key: 'seatGrid' });
-
-      await mlQueue.add('process-video', {
-        videoId: video._id.toString(),
-        filepath: video.filepath,
-        filename: video.originalName,
-        seatGrid: seatGridSetting ? seatGridSetting.value : null,
-      }, {
-        attempts: 2,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: true,
-        removeOnFail: false,
+    if (result.outcome === 'invalid') {
+      return res.status(422).json({
+        success: false,
+        error: 'Uploaded file is not a valid or readable video.',
+        details: result.details,
+        data: result.video,
       });
-      console.log(`📤  Queued ML job for video: ${video.originalName}`);
-    } catch (queueErr) {
-      console.warn('⚠️  Redis/BullMQ unavailable, ML job not queued:', queueErr.message);
-      // Video is still saved — can be manually requeued later
+    }
+    if (result.outcome === 'duplicate') {
+      return res.status(409).json({
+        success: false,
+        error: 'This video has already been uploaded.',
+        details: `Matches existing video "${result.video.originalName}" (video_id: ${result.video._id}).`,
+        data: result.video,
+      });
     }
 
-    res.status(201).json({ success: true, data: video });
+    res.status(201).json({ success: true, data: result.video });
   } catch (err) {
     next(err);
   }
@@ -226,17 +277,25 @@ router.post('/:id/requeue', async (req, res, next) => {
     const { Setting } = require('../models');
     const seatGridSetting = await Setting.findOne({ key: 'seatGrid' });
 
-    await mlQueue.add('process-video', {
-      videoId: video._id.toString(),
-      filepath: video.filepath,
-      filename: video.originalName,
-      seatGrid: seatGridSetting ? seatGridSetting.value : null,
-    }, {
-      attempts: 2,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: true,
-      removeOnFail: false,
-    });
+    try {
+      await withTimeout(mlQueue.add('process-video', {
+        videoId: video._id.toString(),
+        filepath: video.filepath,
+        filename: video.originalName,
+        seatGrid: seatGridSetting ? seatGridSetting.value : null,
+      }, {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      }), 5000, 'mlQueue.add');
+    } catch (queueErr) {
+      const reason = describeError(queueErr);
+      console.error(`❌  Requeue failed for video ${video._id} — Redis/BullMQ unavailable or timed out: ${reason}`);
+      const err = new Error(`ML queue unreachable, could not requeue: ${reason}`);
+      err.statusCode = 503;
+      throw err;
+    }
 
     res.json({ success: true, message: 'Video requeued for processing', data: video });
   } catch (err) {
