@@ -1,10 +1,25 @@
 import numpy as np
+from typing import Any, Dict
+
+from .grid_config import get_adjacent_seats
 
 # Maximum number of consecutive frames with >2 simultaneous active cells
 # that is still treated as brief noise. A sustained pattern beyond this
 # threshold is treated as a single moving body (e.g., a nearby guard whose
 # silhouette spans multiple grid cells due to perspective geometry).
 _BRIEF_SPIKE_MAX_FRAMES = 3
+
+# §9 build_explanation: maps a raw `activities[]` signal string (from
+# pose_gesture.py / this module) to the human-readable phrase used in the
+# explanation template. `chit_passing` carries a "chit_passing:<tid_a>+<tid_b>"
+# suffix, so it's matched by prefix, not exact string, below.
+_ACTIVITY_DESCRIPTIONS = {
+    "sustained_gaze_shift": "sustained gaze shift",
+    "targeted_scanning": "targeted scanning",
+    "chit_passing": "hand movement toward neighbor",
+    "seat_vacant_near_invigilator": "seat vacant near invigilator",
+}
+_NO_ACTIVITY_DESCRIPTION = "motion detected"
 
 
 def is_invigilator_motion(cell_history: list[set[str]]) -> bool:
@@ -128,3 +143,119 @@ def is_seat_vacated(seat_history: list[bool], timeout_frames: int) -> bool:
             
     # Strictly greater than timeout_frames
     return consecutive_inactive > timeout_frames
+
+
+def flag_seat_vacant_near_invigilator(seat_history: list[bool], invigilator_cell_history: list[set[str]],
+                                       seat_id: str, camera_id: str) -> bool:
+    """
+    §3.4 seat_vacant_near_invigilator: a student's motion drops out (is_seat_vacated) in
+    the same window an invigilator is detected traveling through the
+    student's own seat or an adjacent one (is_invigilator_motion).
+
+    seat_history: sequence of boolean presence/motion states for `seat_id`
+        over the same window as invigilator_cell_history (see is_seat_vacated).
+    invigilator_cell_history: sequence of sets of active grid-cell IDs over
+        the same window (see is_invigilator_motion).
+    seat_id, camera_id: identify the student's seat and which camera's
+        adjacency map to check (see grid_config.get_adjacent_seats).
+
+    Returns True only if BOTH gates fire:
+      1. is_invigilator_motion(invigilator_cell_history) is True, AND the
+         cells touched anywhere in that window include seat_id itself or a
+         seat adjacent to it.
+      2. is_seat_vacated(seat_history, timeout_frames=3) is True.
+    timeout_frames=3 reuses _BRIEF_SPIKE_MAX_FRAMES, the same noise-vs-signal
+    cutoff already used inside is_invigilator_motion.
+    Cameras with no adjacency map (get_adjacent_seats returns an empty set)
+    degrade Gate 1 to a same-seat-only check.
+    """
+    if not is_invigilator_motion(invigilator_cell_history):
+        return False
+
+    touched_cells: set[str] = set()
+    for active in invigilator_cell_history:
+        touched_cells |= active
+
+    relevant_cells = {seat_id} | get_adjacent_seats(seat_id, camera_id)
+    if not (touched_cells & relevant_cells):
+        return False
+
+    return is_seat_vacated(seat_history, timeout_frames=_BRIEF_SPIKE_MAX_FRAMES)
+
+
+def _activity_description(activities: list) -> str:
+    """
+    Maps the first entry of an event's `activities[]` list to a human-readable
+    phrase via `_ACTIVITY_DESCRIPTIONS` (prefix-matched, since chit_passing
+    carries a ":<tid_a>+<tid_b>" suffix). Falls back to the raw signal name
+    (underscores -> spaces) for any future signal not yet in the map, and to
+    `_NO_ACTIVITY_DESCRIPTION` when the list is empty (motion+fusion only,
+    no pose/gesture signal fired) -- this is the case build_explanation()
+    must still handle cleanly, never leaving the explanation blank.
+    """
+    if not activities:
+        return _NO_ACTIVITY_DESCRIPTION
+
+    first = activities[0]
+    for prefix, description in _ACTIVITY_DESCRIPTIONS.items():
+        if first == prefix or first.startswith(prefix + ":"):
+            return description
+
+    return first.replace("_", " ")
+
+
+def build_explanation(event: Dict[str, Any]) -> str:
+    """
+    §9 integration contract: builds the human-readable `explanation` string
+    (ML master doc §3.7 format) from fields already present on a finalized
+    event -- same wiring point as severity_score/risk_label/color_tag/confidence
+    in p2_p3_bridge.py's _finalize_track().
+
+    Template: "Seat {seat_id}, {activity description}, {duration}s{, {class} detected {confidence}}"
+    e.g. "Seat 14, hand movement toward neighbor, 6.4s, phone detected 0.62"
+
+    Deterministic string formatting only -- no NLP, no randomness.
+
+    Parameters
+    ----------
+    event : dict
+        A finalized event as produced by P2P3Bridge._finalize_track(). Reads
+        (all optional/defensive -- never raises on a missing key):
+            seat_ids          list[str]
+            activities        list[str]
+            start_time, end_time  float (seconds)
+            object_detected   bool
+            metadata          list[dict] with 'class'/'confidence' keys
+
+    Returns
+    -------
+    str: never blank -- motion+fusion alone (no seat, no activities, no
+    object) still produces a valid explanation via the "unknown seat" /
+    "motion detected" fallbacks.
+    """
+    # grid_config.py's real seat_ids are "seat_1", "seat_66", etc. -- strip the
+    # "seat_" prefix so the template's own "Seat " word isn't duplicated
+    # (matches the master-doc example "Seat 14", not "Seat seat_14").
+    seat_ids = event.get("seat_ids") or []
+    seat_numbers = [s[len("seat_"):] if s.startswith("seat_") else s for s in seat_ids]
+    seat_label = "/".join(seat_numbers) if seat_numbers else "unknown"
+
+    activity_desc = _activity_description(event.get("activities") or [])
+
+    duration = float(event.get("end_time", 0.0)) - float(event.get("start_time", 0.0))
+    duration = max(0.0, duration)
+
+    object_clause = ""
+    if event.get("object_detected"):
+        metadata = event.get("metadata") or []
+        dets = [m for m in metadata if m.get("class")]
+        if dets:
+            best = max(dets, key=lambda m: m.get("confidence") if m.get("confidence") is not None else -1.0)
+            cls = best["class"]
+            conf = best.get("confidence")
+            if conf is not None:
+                object_clause = f", {cls} detected {conf:.2f}"
+            else:
+                object_clause = f", {cls} detected"
+
+    return f"Seat {seat_label}, {activity_desc}, {duration:.1f}s{object_clause}"

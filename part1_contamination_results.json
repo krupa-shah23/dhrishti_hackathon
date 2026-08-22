@@ -1,0 +1,152 @@
+{
+  "camera12_clip4": {
+    "clip": "04_candidate_talking.mkv",
+    "total_boxes": 1908,
+    "contaminated_total": 4057,
+    "pair_counts": {
+      "seat_61|seat_66": 1029,
+      "seat_61|seat_65": 636,
+      "seat_60|seat_61": 839,
+      "seat_64|seat_65": 471,
+      "seat_60|seat_64": 674,
+      "seat_60|seat_63": 408
+    },
+    "examples": [
+      [
+        1,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        3,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        4,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        5,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        6,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        7,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        8,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        9,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        10,
+        "seat_66",
+        "seat_61",
+        15400
+      ],
+      [
+        11,
+        "seat_66",
+        "seat_61",
+        15400
+      ]
+    ]
+  },
+  "dahisar1_clip07": {
+    "clip": "07_seat_exchange.mkv",
+    "total_boxes": 6520,
+    "contaminated_total": 13755,
+    "pair_counts": {
+      "seat_3|seat_4": 2709,
+      "seat_4|seat_5": 2373,
+      "seat_4|seat_6": 2948,
+      "seat_1|seat_2": 2152,
+      "seat_5|seat_6": 1659,
+      "seat_2|seat_3": 1914
+    },
+    "examples": [
+      [
+        825,
+        "seat_4",
+        "seat_3",
+        7150
+      ],
+      [
+        825,
+        "seat_4",
+        "seat_5",
+        12600
+      ],
+      [
+        825,
+        "seat_4",
+        "seat_6",
+        900
+      ],
+      [
+        826,
+        "seat_4",
+        "seat_3",
+        7150
+      ],
+      [
+        826,
+        "seat_4",
+        "seat_5",
+        12600
+      ],
+      [
+        826,
+        "seat_4",
+        "seat_6",
+        900
+      ],
+      [
+        827,
+        "seat_4",
+        "seat_3",
+        7150
+      ],
+      [
+        827,
+        "seat_4",
+        "seat_5",
+        12600
+      ],
+      [
+        827,
+        "seat_4",
+        "seat_6",
+        900
+      ],
+      [
+        828,
+        "seat_4",
+        "seat_3",
+        7150
+      ]
+    ]
+  }
+}

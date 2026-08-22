@@ -1,0 +1,65 @@
+{
+  "sweep": {
+    "0.25_OLD_no_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 84,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    },
+    "0.25_NEW_with_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 84,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    },
+    "0.3_OLD_no_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 92,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    },
+    "0.3_NEW_with_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 92,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    },
+    "0.35_OLD_no_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 94,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    },
+    "0.35_NEW_with_fallback": {
+      "empty_seat_ids_count": 14,
+      "nonempty_seat_ids_count": 126,
+      "confirmed_count": 94,
+      "ground_truth": {
+        "pair1_present": true,
+        "pair2_count": 18,
+        "pair2_cross_linked": true
+      }
+    }
+  },
+  "diffs_at_0.25": 0
+}

@@ -1,0 +1,94 @@
+[
+  {
+    "clip": "clip4",
+    "alpha": 0.0004,
+    "raw": 144,
+    "confirmed": 81,
+    "clusters": 68,
+    "elapsed_sec": 13.7,
+    "ground_truth": {
+      "pair1_event_count": 4,
+      "pair1_present": true,
+      "pair2_event_count": 18,
+      "pair2_cross_linked": false
+    }
+  },
+  {
+    "clip": "clip4",
+    "alpha": 0.0008,
+    "raw": 140,
+    "confirmed": 84,
+    "clusters": 77,
+    "elapsed_sec": 14.7,
+    "ground_truth": {
+      "pair1_event_count": 4,
+      "pair1_present": true,
+      "pair2_event_count": 18,
+      "pair2_cross_linked": true
+    }
+  },
+  {
+    "clip": "clip4",
+    "alpha": 0.0015,
+    "raw": 144,
+    "confirmed": 77,
+    "clusters": 69,
+    "elapsed_sec": 14.1,
+    "ground_truth": {
+      "pair1_event_count": 4,
+      "pair1_present": true,
+      "pair2_event_count": 15,
+      "pair2_cross_linked": false
+    }
+  },
+  {
+    "clip": "clip4",
+    "alpha": 0.0025,
+    "raw": 159,
+    "confirmed": 79,
+    "clusters": 69,
+    "elapsed_sec": 13.4,
+    "ground_truth": {
+      "pair1_event_count": 4,
+      "pair1_present": true,
+      "pair2_event_count": 15,
+      "pair2_cross_linked": false
+    }
+  },
+  {
+    "clip": "dahisar1",
+    "alpha": 0.0004,
+    "raw": 2373,
+    "confirmed": 573,
+    "clusters": 506,
+    "elapsed_sec": 598.8,
+    "ground_truth": {
+      "adjacent_seat_linked_pairs": 222,
+      "seat7_leakage": 0
+    }
+  },
+  {
+    "clip": "dahisar1",
+    "alpha": 0.0008,
+    "raw": 2505,
+    "confirmed": 567,
+    "clusters": 495,
+    "elapsed_sec": 733.7,
+    "ground_truth": {
+      "adjacent_seat_linked_pairs": 203,
+      "seat7_leakage": 0
+    }
+  },
+  {
+    "clip": "dahisar1",
+    "alpha": 0.0015,
+    "raw": 2639,
+    "confirmed": 560,
+    "clusters": 487,
+    "elapsed_sec": 801.9,
+    "ground_truth": {
+      "adjacent_seat_linked_pairs": 213,
+      "seat7_leakage": 0
+    }
+  }
+]

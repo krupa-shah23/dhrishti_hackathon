@@ -23,13 +23,49 @@ class MotionEstimator:
     """
 
     def __init__(self, history=500, var_threshold=25, detect_shadows=True,
-                 learning_rate=0.0008, use_stabilization=False, camera_mask=None):
+                 learning_rate=0.0008, use_stabilization=False, camera_mask=None,
+                 steady_learning_rate=0.0008, warmup_frames=None):
         self.mog2 = cv2.createBackgroundSubtractorMOG2(
             history=history,
             varThreshold=var_threshold,
             detectShadows=detect_shadows,
         )
-        self.learning_rate = learning_rate  # explicit, slower than MOG2's default 1/history ≈ 0.002, so near-stationary subjects survive longer before being absorbed into the background model
+        self.history = history
+        self.learning_rate = learning_rate  # warmup-phase alpha, explicit, slower than MOG2's default 1/history ≈ 0.002, so near-stationary subjects survive longer before being absorbed into the background model
+
+        # Phase-aware alpha (§3.2): two phases only, one switch, no ramp.
+        # - warmup: frames 1..warmup_frames -- background still converging,
+        #   uses the existing `learning_rate` above, unchanged.
+        # - steady: frames after warmup_frames -- uses `steady_learning_rate`.
+        #
+        # VALIDATED against ground truth on 04_candidate_talking.mkv (Camera12
+        # "Clip 4" -- see scripts/verification/verify_clip4_clustering.py for
+        # the ground-truth windows: Pair 1 seat_66<->seat_61 @3-12s (warmup,
+        # control), Pair 2 seat_64<->seat_65 @72-87s/97-102s/140-143s (steady
+        # phase, should link into ONE incident), false-merge check on
+        # seat_63/seat_60). Tested steady_learning_rate in {0.0006, 0.0008,
+        # 0.0010} through the full motion->track->fuse->bridge->clustering
+        # pipeline: only 0.0008 (== warmup alpha, i.e. no phase change)
+        # correctly links all three Pair-2 windows into one incident
+        # (pair2_all_linked=True); both 0.0006 and 0.0010 broke that
+        # true-positive linkage while only marginally changing the
+        # seat_63/seat_60 false-merge count (14-17 across all three
+        # candidates). On this clip, deviating from the warmup alpha in
+        # steady phase costs more (broken true-positive linkage) than it
+        # saves (a couple fewer false-merge hits) -- so steady_learning_rate
+        # is set equal to the warmup learning_rate here. The phase-switch
+        # mechanism itself stays in place (still exercised/tested) for future
+        # re-validation if a different steady value is ever justified on a
+        # broader dataset.
+        # warmup_frames defaults to `history`, MotionEstimator's own existing
+        # MOG2-convergence-window parameter -- the only constant already in
+        # this codebase tied to "how long until MOG2's background model has
+        # converged" (no dedicated warmup constant exists elsewhere).
+        self.steady_learning_rate = steady_learning_rate
+        self.warmup_frames = warmup_frames if warmup_frames is not None else history
+        self._frame_count = 0
+        self.phase = "warmup"
+        self.current_learning_rate = self.learning_rate
 
         self.use_stabilization = use_stabilization
         self.stabilizer = FrameStabilizer() if use_stabilization else None
@@ -78,8 +114,18 @@ class MotionEstimator:
         mag_map = cv2.absdiff(gray, self.prev_gray)
         self.prev_gray = gray
 
+        # Phase-aware alpha: advance the frame counter and pick the phase
+        # boundary once per call, no ramp. See __init__ for rationale.
+        self._frame_count += 1
+        if self._frame_count <= self.warmup_frames:
+            self.phase = "warmup"
+            self.current_learning_rate = self.learning_rate
+        else:
+            self.phase = "steady"
+            self.current_learning_rate = self.steady_learning_rate
+
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-        raw_mask = self.mog2.apply(blurred, learningRate=self.learning_rate)
+        raw_mask = self.mog2.apply(blurred, learningRate=self.current_learning_rate)
 
         # MOG2 with detectShadows=True marks shadow pixels as 127 (gray).
         # We only want true foreground (255), so threshold shadows out.
@@ -104,6 +150,9 @@ class MotionEstimator:
         """Call when starting a new clip so stabilizer state doesn't leak across clips."""
         if self.stabilizer is not None:
             self.stabilizer.reset()
+        self._frame_count = 0
+        self.phase = "warmup"
+        self.current_learning_rate = self.learning_rate
 
 
 DEFAULT_DIFF_THRESHOLD = 20

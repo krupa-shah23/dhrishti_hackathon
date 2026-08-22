@@ -1,18 +1,32 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 
 try:
     from src.motion.severity_scoring import compute_severity, score_to_risk_label
+    from src.motion.heuristics import flag_seat_vacant_near_invigilator, build_explanation
 except ImportError:
     from ..motion.severity_scoring import compute_severity, score_to_risk_label
+    from ..motion.heuristics import flag_seat_vacant_near_invigilator, build_explanation
 
 class P2P3Bridge:
-    def __init__(self, missing_threshold: int = 30, fps: float = 30.0, audio_path: Optional[str] = None):
+    def __init__(self, missing_threshold: int = 30, fps: float = 30.0, audio_path: Optional[str] = None,
+                 camera_id: Optional[str] = None):
         self.missing_threshold = missing_threshold
         self.fps = fps
         self.audio_path = audio_path
+        # §3.4 seat_vacant_near_invigilator: which camera's seat-adjacency map to use for
+        # Gate 1 (see heuristics.flag_seat_vacant_near_invigilator). None (default) keeps
+        # existing callers behaviorally unchanged -- the whole feature is
+        # opt-in via this constructor argument.
+        self.camera_id = camera_id
         self.active_tracks: Dict[int, Dict[str, Any]] = {}
         self.completed_events: List[Dict[str, Any]] = []
         self.current_frame = 0
+        # §3.4 seat_vacant_near_invigilator rolling histories (see process_fused_tracks).
+        # Bounded to missing_threshold frames -- the same "how much recent
+        # history matters" window already used elsewhere in this class.
+        self._invigilator_cell_history: List[Set[str]] = []
+        self._seat_activity_history: Dict[str, List[bool]] = {}
+        self._last_track_id_per_seat: Dict[str, int] = {}
 
     def process_fused_tracks(
         self,
@@ -88,6 +102,11 @@ class P2P3Bridge:
             if seat_id and seat_id != "unknown":
                 counts = track_data["seat_id_counts"]
                 counts[seat_id] = counts.get(seat_id, 0) + 1
+                # §3.4: remember which track currently owns this seat, so a
+                # seat_vacant_near_invigilator tag (fired below, after the seat's
+                # track may already have gone quiet this frame) has somewhere to land.
+                if not is_invigilator:
+                    self._last_track_id_per_seat[seat_id] = track_id
 
             # Accumulate per-frame motion intensity for severity scoring (§3.7)
             if motion_intensity is not None:
@@ -105,6 +124,41 @@ class P2P3Bridge:
                 for sig in pose_signals[track_id]:
                     if sig not in track_data["pose_activities"]:
                         track_data["pose_activities"].append(sig)
+
+        # --- §3.4 seat_vacant_near_invigilator: update rolling histories, then tag ---
+        # Opt-in: only runs when camera_id was supplied (needed for the seat
+        # adjacency map Gate 1 checks). Writes into the SAME activities[]
+        # array pose/gesture signals already use (see _finalize_track).
+        if self.camera_id is not None:
+            invigilator_cells_this_frame = {
+                ft.get("seat_id") for ft in fused_tracks
+                if ft.get("invigilator_flag") and ft.get("seat_id") not in (None, "unknown")
+            }
+            student_seats_this_frame = {
+                ft.get("seat_id") for ft in fused_tracks
+                if not ft.get("invigilator_flag") and ft.get("seat_id") not in (None, "unknown")
+            }
+
+            self._invigilator_cell_history.append(invigilator_cells_this_frame)
+            if len(self._invigilator_cell_history) > self.missing_threshold:
+                self._invigilator_cell_history.pop(0)
+
+            # Update every seat we've ever seen a student track occupy, not
+            # just this frame's -- a "dip" is precisely the frames where a
+            # previously-active seat drops OUT of student_seats_this_frame.
+            tracked_seats = set(self._seat_activity_history.keys()) | student_seats_this_frame
+            for seat_id in tracked_seats:
+                history = self._seat_activity_history.setdefault(seat_id, [])
+                history.append(seat_id in student_seats_this_frame)
+                if len(history) > self.missing_threshold:
+                    history.pop(0)
+
+                if flag_seat_vacant_near_invigilator(history, self._invigilator_cell_history, seat_id, self.camera_id):
+                    tid = self._last_track_id_per_seat.get(seat_id)
+                    if tid is not None and tid in self.active_tracks:
+                        tagged_track = self.active_tracks[tid]
+                        if "seat_vacant_near_invigilator" not in tagged_track["pose_activities"]:
+                            tagged_track["pose_activities"].append("seat_vacant_near_invigilator")
 
         # Finalize stale tracks
         stale_ids = []
@@ -165,6 +219,17 @@ class P2P3Bridge:
                 [s for s, c in seat_counts.items() if c >= threshold],
                 key=lambda s: -seat_counts[s]
             )
+            if not dominant_seats:
+                # Fallback: no seat individually cleared the threshold (frames spread
+                # thinly across several seats) -- force-include the primary seat
+                # (max frames) per this function's own stated intent above, so
+                # dominant_seats is never empty when at least one frame was
+                # seat-attributed at all. Ties at max_count are all included
+                # (deterministic; no arbitrary single-winner pick).
+                dominant_seats = sorted(
+                    [s for s, c in seat_counts.items() if c == max_count],
+                    key=lambda s: -seat_counts[s]
+                )
 
         event = {
             "event_id": track_data["event_id"],
@@ -196,6 +261,11 @@ class P2P3Bridge:
 
         if track_data["metadata"]:
             event["metadata"] = track_data["metadata"]
+
+        # §9 integration contract — explanation field, same wiring point as
+        # the severity fields above (built last since it reads 'metadata',
+        # which is only attached to `event` immediately above this line).
+        event["explanation"] = build_explanation(event)
 
         self.completed_events.append(event)
 

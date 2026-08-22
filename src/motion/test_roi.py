@@ -33,6 +33,142 @@ except ImportError:
         return [b['bbox'] if isinstance(b, dict) else b for b in res]
     from exclusion_regions import get_exclusion_regions
 
+try:
+    from .roi import get_grid_rois
+    from .grid_config import get_grid_config
+except ImportError:
+    from roi import get_grid_rois
+    from grid_config import get_grid_config
+
+
+import unittest
+
+
+class TestGetGridRois(unittest.TestCase):
+    """
+    Plan 1.5: get_grid_rois() unit tests. Synthetic masks against Camera12's
+    real grid (native 640x480, no scaling) -- seat_65/seat_64 are the
+    already-verified adjacent pair from the closed clip-4 clustering work
+    (grid_config.py's own adjacency map), reused here rather than inventing
+    new synthetic seat IDs.
+    """
+
+    def setUp(self):
+        self.grid = get_grid_config("Camera12")  # native 640x480, matches mask shape below
+        self.seats = self.grid["seats"]
+
+    def test_two_adjacent_cells_produce_two_separate_boxes(self):
+        # One CONTIGUOUS blob straddling seat_65 (160,120,340,280) and
+        # seat_64 (330,130,470,380) -- exactly the shape a contour-based
+        # get_rois() would merge into a single box (losing one seat
+        # entirely). get_grid_rois() must still emit two independent boxes.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[150:300, 200:400] = 255  # crosses the seat_65/seat_64 boundary at x=330-340
+
+        boxes = get_grid_rois(mask, self.grid)
+        seat_ids = sorted(b["seat_id"] for b in boxes)
+
+        self.assertEqual(seat_ids, ["seat_64", "seat_65"],
+                          "expected exactly one box per straddled seat, not a merged single box")
+        for b in boxes:
+            self.assertEqual(b["bbox"], self.seats[b["seat_id"]],
+                              "bbox must be the seat's own rectangle, not a contour-derived box")
+
+    def test_scattered_subthreshold_noise_is_rejected(self):
+        # seat_66: (0, 120, 150, 480), area 150*360=54000. Scatter isolated
+        # 3x3 dots (non-touching, 3px gaps) totaling well over 5% of the
+        # seat's area, so the intensity gate passes -- but the largest
+        # single contour is only 9px, far under MIN_CONTOUR_AREA=500, so
+        # shape-validity must still reject it.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        x1, y1, x2, y2 = self.seats["seat_66"]
+        for yy in range(y1 + 10, y1 + 190, 6):
+            for xx in range(x1 + 10, x2 - 10, 6):
+                mask[yy:yy + 3, xx:xx + 3] = 255
+
+        total_on = int(np.count_nonzero(mask[y1:y2, x1:x2]))
+        area = (x2 - x1) * (y2 - y1)
+        self.assertGreaterEqual(total_on / area, 0.05,
+                                 "test setup bug: scattered noise must clear the intensity gate")
+
+        boxes = get_grid_rois(mask, self.grid)
+        self.assertNotIn("seat_66", [b["seat_id"] for b in boxes],
+                          "scattered sub-MIN_CONTOUR_AREA noise should be rejected by shape validity")
+
+    def test_single_contiguous_blob_fills_cell_boundary_used_not_contour_bbox(self):
+        # seat_63: (470, 160, 640, 400). One solid blob covering most of it.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[180:380, 490:620] = 255  # smaller than the full cell -- proves bbox isn't the contour's own box
+
+        boxes = get_grid_rois(mask, self.grid)
+        matching = [b for b in boxes if b["seat_id"] == "seat_63"]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0]["bbox"], self.seats["seat_63"],
+                          "bbox must equal the full cell rectangle, not the tighter contour bounding box")
+
+    def test_zero_motion_cell_is_skipped_at_intensity_gate(self):
+        # seat_60: (280, 340, 480, 480) left entirely zero; motion placed
+        # elsewhere (seat_63) so the mask isn't trivially all-empty.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[180:380, 490:620] = 255
+
+        boxes = get_grid_rois(mask, self.grid)
+        self.assertNotIn("seat_60", [b["seat_id"] for b in boxes])
+
+    def test_crop_bbox_clips_at_cell_edge(self):
+        # seat_63: (470, 160, 640, 400), area 40800 -- needs >=2040px to
+        # clear the 5% intensity gate, so the corner blob is 50x50=2500px
+        # (not just big enough to test clipping, big enough to be detected
+        # at all). Blob touches the top-left corner exactly -- a naive -9px
+        # margin would push past x1/y1; crop_bbox must clip to the cell's
+        # own edge instead.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[160:210, 470:520] = 255  # touches x1=470 and y1=160 exactly
+
+        boxes = get_grid_rois(mask, self.grid)
+        matching = [b for b in boxes if b["seat_id"] == "seat_63"]
+        self.assertEqual(len(matching), 1)
+        cx1, cy1, cx2, cy2 = matching[0]["crop_bbox"]
+        self.assertEqual((cx1, cy1), (470, 160), "must clip to the cell's top-left edge, not go negative-relative")
+        self.assertEqual((cx2, cy2), (529, 219), "far side gets the full +9px margin since it's nowhere near an edge")
+
+        # Same check on the bottom-right corner, seat_66 (0,120,150,480),
+        # area 54000 -- needs >=2700px, so a 55x55=3025px corner blob.
+        mask2 = np.zeros((480, 640), dtype=np.uint8)
+        mask2[425:480, 95:150] = 255  # touches x2=150 and y2=480 exactly
+        boxes2 = get_grid_rois(mask2, self.grid)
+        matching2 = [b for b in boxes2 if b["seat_id"] == "seat_66"]
+        self.assertEqual(len(matching2), 1)
+        cx1b, cy1b, cx2b, cy2b = matching2[0]["crop_bbox"]
+        self.assertEqual((cx2b, cy2b), (150, 480), "must clip to the cell's bottom-right edge")
+        self.assertEqual((cx1b, cy1b), (86, 416), "near side gets the full +9px margin since it's nowhere near an edge")
+
+    def test_crop_bbox_no_clipping_needed_when_centered(self):
+        # seat_66: (0, 120, 150, 480), area 54000 -- 55x55=3025px blob
+        # (clears the 5% gate) placed well away from every edge. crop_bbox
+        # should be exactly the contour bbox +/- 9px, untouched.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[240:295, 40:95] = 255
+
+        boxes = get_grid_rois(mask, self.grid)
+        matching = [b for b in boxes if b["seat_id"] == "seat_66"]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0]["crop_bbox"], (31, 231, 104, 304))
+
+    def test_crop_bbox_degenerate_full_cell_contour_no_crash(self):
+        # seat_63: (470, 160, 640, 400) filled entirely -- the contour's own
+        # bounding box already equals the full cell on all four sides, so
+        # the +9px margin would want to exceed every edge simultaneously.
+        # Must degrade gracefully to exactly the cell rect, no crash.
+        mask = np.zeros((480, 640), dtype=np.uint8)
+        mask[160:400, 470:640] = 255
+
+        boxes = get_grid_rois(mask, self.grid)
+        matching = [b for b in boxes if b["seat_id"] == "seat_63"]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0]["crop_bbox"], (470, 160, 640, 400))
+        self.assertEqual(matching[0]["crop_bbox"], matching[0]["bbox"])
+
 
 CLIP_PATHS = {
     "cubicle": "data/shadow/cubicle/input",

@@ -156,9 +156,67 @@ class TestMotionEstimator(unittest.TestCase):
             from motion import fuse_motion_signal
             
         fused_mask = fuse_motion_signal(mag2, mog2_mask2)
-        
+
         # Verify fused_mask contains the 20x20 region (at least 400), proving union includes frame-diff
         self.assertTrue(np.count_nonzero(fused_mask) >= 400)
+
+    def test_phase_aware_alpha_switches_at_correct_frame_count(self):
+        """
+        §3.2 phase-aware alpha: warmup uses `learning_rate`, steady uses
+        `steady_learning_rate`, switching exactly once at warmup_frames.
+        Uses a small warmup_frames override so the test doesn't need 500
+        real calls to prove the boundary logic.
+        """
+        estimator = MotionEstimator(learning_rate=0.0008, steady_learning_rate=0.0004,
+                                     warmup_frames=5)
+        frame = np.ones((50, 50, 3), dtype=np.uint8) * 100
+
+        # Before any frames: still initialized to warmup defaults.
+        self.assertEqual(estimator.phase, "warmup")
+        self.assertEqual(estimator.current_learning_rate, 0.0008)
+
+        # Frames 1..5 (warmup_frames=5): must stay in warmup phase.
+        for i in range(1, 6):
+            estimator.get_motion_mask(frame)
+            self.assertEqual(estimator._frame_count, i)
+            self.assertEqual(estimator.phase, "warmup",
+                              f"frame {i} should still be warmup")
+            self.assertEqual(estimator.current_learning_rate, 0.0008)
+
+        # Frame 6: first frame past the boundary -- must switch to steady.
+        estimator.get_motion_mask(frame)
+        self.assertEqual(estimator._frame_count, 6)
+        self.assertEqual(estimator.phase, "steady")
+        self.assertEqual(estimator.current_learning_rate, 0.0004)
+
+        # Frame 7: stays steady (no ramp, no reverting).
+        estimator.get_motion_mask(frame)
+        self.assertEqual(estimator.phase, "steady")
+        self.assertEqual(estimator.current_learning_rate, 0.0004)
+
+    def test_phase_aware_alpha_default_warmup_frames_is_history(self):
+        """warmup_frames defaults to `history` when not explicitly given."""
+        estimator = MotionEstimator(history=3)
+        self.assertEqual(estimator.warmup_frames, 3)
+        frame = np.ones((50, 50, 3), dtype=np.uint8) * 100
+        for _ in range(3):
+            estimator.get_motion_mask(frame)
+        self.assertEqual(estimator.phase, "warmup")
+        estimator.get_motion_mask(frame)
+        self.assertEqual(estimator.phase, "steady")
+
+    def test_phase_aware_alpha_reset_returns_to_warmup(self):
+        """reset() (called at the start of a new clip) must re-arm warmup phase."""
+        estimator = MotionEstimator(warmup_frames=2)
+        frame = np.ones((50, 50, 3), dtype=np.uint8) * 100
+        for _ in range(3):
+            estimator.get_motion_mask(frame)
+        self.assertEqual(estimator.phase, "steady")
+
+        estimator.reset()
+        self.assertEqual(estimator.phase, "warmup")
+        self.assertEqual(estimator._frame_count, 0)
+        self.assertEqual(estimator.current_learning_rate, estimator.learning_rate)
 
 if __name__ == "__main__":
     import sys

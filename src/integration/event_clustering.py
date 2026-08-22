@@ -74,19 +74,47 @@ def segment_events(
     enriched_events: List[Dict[str, Any]],
     motion_threshold: float = 0.05,
     min_duration_sec: float = 1.0,
+    merge_gap_sec: float = 2.0,
 ) -> List[Dict[str, Any]]:
     """
-    Applies hysteresis thresholding to filter enriched events into confirmed
-    incident segments. Events below motion_threshold or shorter than
-    min_duration_sec are discarded as noise.
+    Filters and merges enriched events into confirmed incident segments.
 
-    Hysteresis: an event must have avg_motion_intensity > motion_threshold
-    AND duration >= min_duration_sec to be retained.
+    Two-stage process implementing the equivalent of N-on/M-off hysteresis
+    for this architecture where events arrive as completed track objects
+    (not frame-by-frame signals):
 
-    Returns filtered list of events with 'segment_confirmed'=True.
+    Stage 1 — N-on gate (open only on confirmed motion):
+        Discard events below motion_threshold or shorter than min_duration_sec.
+        Also drops invigilator-flagged events (set by enrich_event_with_motion_fields).
+
+    Stage 2 — M-off merge (hold-off before closing):
+        Same-seat events separated by a gap < merge_gap_sec are merged into one.
+        This prevents one physical action (e.g. a candidate reading) from being
+        fragmented into many 1-second track events when the CentroidTracker spawns
+        separate IDs for each motion blob during a busy frame window.
+
+        Merge logic:
+          - Events are sorted by start_time.
+          - Two events A, B are merged if:
+              (a) they share at least one seat_id (or both have no seat_ids)
+              (b) B.start_time - A.end_time <= merge_gap_sec
+          - Merged event inherits: earliest start_time, latest end_time,
+            union of seat_ids, highest avg_motion_intensity, first event_id.
+
+    Returns filtered+merged list of events with 'segment_confirmed'=True.
     """
+    # ---- Stage 1: N-on gate ----
     confirmed = []
     for ev in enriched_events:
+        # Drop invigilator tracks before they generate seat-tagged segments.
+        # invigilator_excluded is set by enrich_event_with_motion_fields() from
+        # P2P3Bridge's is_invigilator field, which is raised whenever
+        # p1_p2_tracker sets invigilator_flag=True on a fused track dict.
+        # This is the earliest safe gate: after enrichment (flag is set), before
+        # cluster_incidents / link_related_events see the event at all.
+        if ev.get("invigilator_excluded", False):
+            continue
+
         duration = ev.get("end_time", 0.0) - ev.get("start_time", 0.0)
         avg_intensity = ev.get("avg_motion_intensity", 0.0)
 
@@ -94,7 +122,51 @@ def segment_events(
             ev["segment_confirmed"] = True
             confirmed.append(ev)
 
-    return confirmed
+    if not confirmed or merge_gap_sec <= 0.0:
+        return confirmed
+
+    # ---- Stage 2: M-off merge ----
+    # Sort by start_time, then greedily merge seat-adjacent events within merge_gap_sec.
+    sorted_evs = sorted(confirmed, key=lambda e: e.get("start_time", 0.0))
+
+    merged = []
+    current = dict(sorted_evs[0])  # shallow copy so we don't mutate original
+    current["seat_ids"] = list(current.get("seat_ids", []))
+
+    for ev in sorted_evs[1:]:
+        seats_cur  = set(current.get("seat_ids", []))
+        seats_next = set(ev.get("seat_ids", []))
+        gap        = ev.get("start_time", 0.0) - current.get("end_time", 0.0)
+
+        # Merge condition: seat overlap (or both unseated) AND gap within hold-off window
+        seats_overlap = bool(seats_cur & seats_next) or (not seats_cur and not seats_next)
+
+        if seats_overlap and gap <= merge_gap_sec:
+            # Extend the current merged event
+            current["end_time"]             = max(current["end_time"], ev.get("end_time", 0.0))
+            current["end_frame"]            = max(current.get("end_frame", 0), ev.get("end_frame", 0))
+            current["seat_ids"]             = sorted(seats_cur | seats_next)
+            current["avg_motion_intensity"] = max(
+                current.get("avg_motion_intensity", 0.0),
+                ev.get("avg_motion_intensity", 0.0),
+            )
+            current["peak_intensity"]       = max(
+                current.get("peak_intensity", 0.0),
+                ev.get("peak_intensity", 0.0),
+            )
+            # Extend positions/boxes for centroid calculations downstream
+            current["positions"] = current.get("positions", []) + ev.get("positions", [])
+            current["boxes"]     = current.get("boxes", []) + ev.get("boxes", [])
+        else:
+            merged.append(current)
+            current = dict(ev)
+            current["seat_ids"] = list(current.get("seat_ids", []))
+
+    merged.append(current)
+    return merged
+
+
+
 
 
 def _events_spatially_adjacent(ev_a: Dict[str, Any], ev_b: Dict[str, Any], camera_id: str = "Camera12", adjacency_threshold_px: float = 50.0) -> bool:

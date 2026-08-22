@@ -20,7 +20,7 @@ Rationale for MediaPipe Pose:
     - If mediapipe is not installed, this module degrades gracefully:
       analyze_pose_crop() returns an empty dict and logs once.
 
-Sub-signals implemented (all four from §3.6):
+Sub-signals implemented (all three from §3.6):
     1. sustained_gaze_shift    — head yaw or pitch > 45° sustained > 5 s
     2. chit_passing            — wrist proximity between two distinct track_ids
     3. targeted_scanning       — 3+ identical angular snaps within 2-min window

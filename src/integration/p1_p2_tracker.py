@@ -23,7 +23,7 @@ from pathlib import Path
 try:
     from src.motion.motion import MotionEstimator
     from src.motion.roi import get_rois
-    from src.motion.exclusion_regions import get_exclusion_regions
+    from src.motion.exclusion_regions import get_exclusion_regions, get_exclusion_mask
     from src.motion.pose_gesture import PoseGestureAnalyzer, integrate_pose_into_event
     from src.track_det.tracker import track, reset_tracker, get_track_history
     from src.track_det.detector import detect_objects
@@ -37,7 +37,7 @@ except ImportError:
         if kwargs.get('return_cleaned'):
             return [b['bbox'] if isinstance(b, dict) else b for b in res[0]], res[1]
         return [b['bbox'] if isinstance(b, dict) else b for b in res]
-    from ..motion.exclusion_regions import get_exclusion_regions
+    from ..motion.exclusion_regions import get_exclusion_regions, get_exclusion_mask
     from ..motion.pose_gesture import PoseGestureAnalyzer, integrate_pose_into_event
     from ..track_det.tracker import track, reset_tracker, get_track_history
     from ..track_det.detector import detect_objects
@@ -115,6 +115,11 @@ class P1P2TrackerPipeline:
         )
         reset_tracker(max_distance=max_distance, max_age=max_age)
 
+        # Tracks which (camera_id, width, height) the motion_estimator's
+        # camera_mask currently reflects, so process_frame() only recomputes
+        # the mask when the camera or frame resolution actually changes.
+        self._camera_mask_key: Optional[Tuple[str, int, int]] = None
+
         # Stage C: Pose/Gesture analyzer (§3.6). Initialized once per clip.
         # PoseGestureAnalyzer is stateful — do NOT re-create per frame.
         self.pose_analyzer = PoseGestureAnalyzer(fps=25.0)  # 25fps default; real fps unknown at init
@@ -143,7 +148,17 @@ class P1P2TrackerPipeline:
 
         if rois_override is not None:
             boxes = list(rois_override)
+            # No motion detection was performed in override mode -- there is no
+            # real intensity value to report. Matches the frame-is-None branch
+            # below, which makes the same choice for the same reason.
+            frame_motion_intensity = 0.0
         elif frame is not None:
+            if camera_id is not None:
+                h, w = frame.shape[:2]
+                mask_key = (camera_id, w, h)
+                if self._camera_mask_key != mask_key:
+                    self.motion_estimator.camera_mask = get_exclusion_mask(camera_id, w, h)
+                    self._camera_mask_key = mask_key
             mag_map, mask = self.motion_estimator.get_motion_mask(frame)
             from src.motion.motion import fuse_motion_signal, motion_intensity as _motion_intensity
             fused_mask = fuse_motion_signal(mag_map, mask)
@@ -297,9 +312,14 @@ def process_video_live(
     min_area: int = 500,
     max_distance: Optional[float] = None,
     max_age: Optional[int] = None,
+    camera_id: Optional[str] = None,
 ) -> Generator[Dict[str, Any], None, None]:
     """
     Generator yielding per-frame P1->P2->P3->P4 integrated results for a video file.
+    camera_id: passed through to process_frame() for per-camera exclusion masking
+    (exclusion_regions.get_exclusion_mask) and seat-grid attribution
+    (grid_config.get_grid_config). None is fine — behaves as before (no masking,
+    seat_id='unknown').
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -317,7 +337,7 @@ def process_video_live(
         ret, frame = cap.read()
         if not ret:
             break
-        result = pipeline.process_frame(frame, frame_index)
+        result = pipeline.process_frame(frame, frame_index, camera_id=camera_id)
         yield result
         frame_index += 1
 
