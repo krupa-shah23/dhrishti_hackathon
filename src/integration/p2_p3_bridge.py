@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import numpy as np
 
 class P2P3Bridge:
     def __init__(self, missing_threshold: int = 30, fps: float = 30.0, audio_path: Optional[str] = None):
@@ -9,7 +10,24 @@ class P2P3Bridge:
         self.completed_events: List[Dict[str, Any]] = []
         self.current_frame = 0
 
-    def process_fused_tracks(self, fused_tracks: List[Dict[str, Any]], frame_index: int):
+    def process_fused_tracks(
+        self,
+        fused_tracks: List[Dict[str, Any]],
+        frame_index: int,
+        frame: Optional[np.ndarray] = None,
+        motion_mask: Optional[np.ndarray] = None,
+    ):
+        """
+        frame / motion_mask are optional and additive (existing callers that
+        don't pass them, e.g. the unit tests, are unaffected — thumbnail/
+        heatmap capture below just no-ops without them). When given:
+          - frame: current raw BGR frame, used to crop a representative
+            thumbnail source per track (best-confidence detection frame if
+            any, else most-recently-seen frame).
+          - motion_mask: current frame's P1 binary motion mask, accumulated
+            per-track over its lifetime as a stopgap "activity heatmap"
+            source (see thumbnail_heatmap_writer.py for the real caveat).
+        """
         self.current_frame = frame_index
         seen_track_ids = set()
 
@@ -46,7 +64,11 @@ class P2P3Bridge:
                     "last_seen_frame": frame_index,
                     "object_detected": None,
                     "is_invigilator": False,
-                    "metadata": []
+                    "metadata": [],
+                    "best_crop": None,
+                    "best_crop_confidence": -1.0,
+                    "last_crop": None,
+                    "heatmap_accum": None,
                 }
 
             track_data = self.active_tracks[track_id]
@@ -62,6 +84,30 @@ class P2P3Bridge:
             if cls is not None:
                 track_data["object_detected"] = True
                 track_data["metadata"].append({"frame": frame_index, "class": cls, "confidence": conf})
+
+            # Thumbnail-source capture: crop this track's own box out of the
+            # current frame. "last_crop" is the fallback (works for events
+            # with no object detection, e.g. talking/seat-exchange); "best_crop"
+            # tracks whichever frame had the highest detection confidence,
+            # since that's the more literal "flagged moment" when one exists.
+            if frame is not None:
+                cy1, cy2 = max(0, int(y1)), max(0, int(y2))
+                cx1, cx2 = max(0, int(x1)), max(0, int(x2))
+                crop = frame[cy1:cy2, cx1:cx2]
+                if crop.size > 0:
+                    track_data["last_crop"] = crop
+                    if conf is not None and conf > track_data["best_crop_confidence"]:
+                        track_data["best_crop"] = crop
+                        track_data["best_crop_confidence"] = conf
+
+            # Heatmap-source capture: accumulate this frame's motion mask
+            # (whole-frame, not just this track's box) over the track's
+            # lifetime, so a caller can render "where activity concentrated
+            # while this event was open".
+            if motion_mask is not None:
+                if track_data["heatmap_accum"] is None:
+                    track_data["heatmap_accum"] = np.zeros(motion_mask.shape, dtype=np.float32)
+                track_data["heatmap_accum"] += (motion_mask > 0).astype(np.float32)
 
         # Finalize stale tracks
         stale_ids = []
@@ -107,6 +153,17 @@ class P2P3Bridge:
 
         if track_data["metadata"]:
             event["metadata"] = track_data["metadata"]
+
+        # Internal-only keys (leading underscore, not part of the P3/schema
+        # contract) -- event_adapter.py reads these to actually write the
+        # thumbnail/heatmap files, then they're discarded (Event is built
+        # from explicit kwargs there, not **event, so these never leak into
+        # the POSTed payload).
+        thumbnail_frame = track_data["best_crop"] if track_data["best_crop"] is not None else track_data["last_crop"]
+        if thumbnail_frame is not None:
+            event["_thumbnail_frame"] = thumbnail_frame
+        if track_data["heatmap_accum"] is not None:
+            event["_heatmap_accum"] = track_data["heatmap_accum"]
 
         self.completed_events.append(event)
 

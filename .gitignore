@@ -1,73 +1,82 @@
-# =========================
-# Python
-# =========================
+# ── Secrets — NEVER commit ──────────────────────────────────
+.env
+*.env
+.env.*
+
+# ── Python ───────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*.pyo
-.pytest_cache/
-
-# =========================
-# Virtual environments
-# =========================
+*$py.class
 .venv/
-.venv_integration/
-.venv_312/
 venv/
 env/
+.pytest_cache/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
 
-# =========================
-# VS Code
-# =========================
-.vscode/
+# ── Claude / tooling ─────────────────────────────────────────
+.claude/
 
-# =========================
-# Jupyter
-# =========================
-.ipynb_checkpoints/
+# ── Node (stray artifact inside fastapi_bridge — keep ignored
+#    unless confirmed intentional) ──────────────────────────
+node_modules/
+package-lock.json
 
-# =========================
-# Models / Weights
-# =========================
-*.pth
-*.onnx
-*.engine
-
-# =========================
-# Training / Experiment outputs
-# =========================
-logs/
-wandb/
-
-# =========================
-# Large raw datasets
-# =========================
-data/frames_raw/
-data/frames_new/
+# ── Large / raw datasets — not needed by P1 for integration ──
 data/college_dataset/
-data/raw_phone/
-data/debug_crops/
-
-# Roboflow generated dataset
 data/roboflow_export/
+data/roboflow_export2/
+data/roboflow_export3/
+data/frames_new/
+data/frames_raw/
+data/valid/
+data/debug_crops/
+debug_crops/
 
-# =========================
-# Video files
-# =========================
-*.avi
-*.mov
-*.mp4
-*.mkv
-*.webm
+# Keep these THOUGH — small, needed for cross-checking:
+!data/ground_truth/
+!data/persons_store.json
 
-# =========================
-# Archives
-# =========================
-*.zip
-*.tar
-*.tar.gz
+# ── Training runs & generic outputs — regenerable, large ─────
+runs/
+outputs/
+ml-service/outputs/
 
-# =========================
-# OS
-# =========================
+
+
+# Base pretrained checkpoints — ultralytics re-downloads these
+yolov8n.pt
+yolo26n.pt
+
+# ── Debug images ───────────────────────────────────────────────
+debug_*.png
+*_preview.png
+
+# ── Logs ───────────────────────────────────────────────────────
+*.log
+fake_backend_stdout.log
+fake_backend_stderr.log
+
+# ── ROI benchmark scratch data (CDNet2014-style dumps —
+#    confirm these are actually needed before un-ignoring) ──
+p1_rois_backdoor.csv
+p1_rois_backdoor.zip
+p1_rois_badminton.csv
+p1_rois_boulevard.csv
+p1_rois_copyMachine.csv
+p1_rois_cubicle.csv
+p1_rois_fountain02.csv
+p1_rois_sidewalk.csv
+p1_rois_traffic.csv
+p1_rois_tramCrossroad_1fps.csv
+p1_rois.csv
+p1_rois.zip
+
+
+# ── OS / editor cruft ───────────────────────────────────────────
 .DS_Store
 Thumbs.db
+*.swp
+.vscode/
+.idea/

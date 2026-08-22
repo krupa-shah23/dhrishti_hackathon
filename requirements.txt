@@ -28,5 +28,9 @@ matplotlib>=3.7
 streamlit>=1.32
 fpdf2>=2.7
 
+# --- P2b/P3 integration: LLM reasoning layer (reasoning_layer.py) ---
+groq>=1.6            # Groq-hosted openai/gpt-oss-20b, OpenAI-compatible client
+python-dotenv>=1.0    # loads .env (GROQ_API_KEY etc.) in fastapi_bridge/main.py
+
 # --- dev / test (test_*.py files across motion, track_det, integration) ---
 pytest>=8.0

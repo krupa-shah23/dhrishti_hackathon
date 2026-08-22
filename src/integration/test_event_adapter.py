@@ -5,7 +5,39 @@ from src.integration.event_adapter import (
     adapt_bridge_events_to_schema,
     DEFAULT_EVENT_TYPE_PLACEHOLDER,
 )
+from src.integration.p2_field_resolvers import (
+    resolve_camera_id,
+    resolve_exam_phase,
+    compute_repetition_count,
+)
 from src.integration.fastapi_bridge.schemas import Event
+
+
+def test_resolve_camera_id():
+    assert resolve_camera_id("clip7") == "cam_clip7"
+    assert resolve_camera_id("07_seat_exchange") == "cam_clip7"
+    assert resolve_camera_id("custom_video_1") == "cam_custom_video_1"
+    assert resolve_camera_id("") == "cam_unknown"
+
+
+def test_resolve_exam_phase():
+    # video duration 100s
+    assert resolve_exam_phase(5.0, 100.0) == "distribution"     # 5% <= 10%
+    assert resolve_exam_phase(10.0, 100.0) == "distribution"    # 10% <= 10%
+    assert resolve_exam_phase(50.0, 100.0) == "core"            # 50%
+    assert resolve_exam_phase(90.0, 100.0) == "submission"      # 90% >= 90%
+    assert resolve_exam_phase(95.0, 100.0) == "submission"      # 95% >= 90%
+    # unknown duration
+    assert resolve_exam_phase(5.0, 0.0) == "main_exam"
+    assert resolve_exam_phase(5.0, -1.0) == "main_exam"
+
+
+def test_compute_repetition_count():
+    assert compute_repetition_count([]) == 0
+    assert compute_repetition_count([False, False]) == 0
+    assert compute_repetition_count([True, True, True]) == 1
+    assert compute_repetition_count([False, True, True, False, False, True, False, True, True, True]) == 3
+    assert compute_repetition_count([None, True, False, True, None]) == 2
 
 
 def test_adapter_with_no_detection_event():
@@ -35,14 +67,17 @@ def test_adapter_with_no_detection_event():
     assert bridge_event["end_time"] == 0.5
 
     # Adapt to schema
-    schema_event = adapt_bridge_event_to_schema(bridge_event, video_id="test_vid_1")
+    schema_event = adapt_bridge_event_to_schema(bridge_event, video_id="test_vid_1", video_duration=100.0)
 
     # Assert validation and field mappings
     assert isinstance(schema_event, Event)
     assert schema_event.event_id == "event_10"
     assert schema_event.video_id == "test_vid_1"
+    assert schema_event.camera_id == "cam_test_vid_1"
     assert schema_event.start == 0.0
     assert schema_event.end == 0.5
+    assert schema_event.exam_phase == "distribution"
+    assert schema_event.repetition_count == 0
     assert schema_event.object_detected is False
     assert schema_event.object_confidence is None
     assert schema_event.event_type == DEFAULT_EVENT_TYPE_PLACEHOLDER
@@ -54,6 +89,8 @@ def test_adapter_with_no_detection_event():
     assert dumped["object_detected"] is False
     assert dumped["start"] == 0.0
     assert dumped["end"] == 0.5
+    assert dumped["camera_id"] == "cam_test_vid_1"
+    assert dumped["exam_phase"] == "distribution"
 
 
 def test_adapter_with_detected_object_event():
@@ -69,7 +106,7 @@ def test_adapter_with_detected_object_event():
         "confidence": 0.92,
         "invigilator_flag": False,
     }]
-    bridge.process_fused_tracks(fused_tracks, frame_index=0)
+    bridge.process_fused_tracks(fused_tracks, frame_index=500)
     bridge.flush()
 
     events = bridge.get_completed_events()
@@ -79,15 +116,18 @@ def test_adapter_with_detected_object_event():
 
     schema_event = adapt_bridge_event_to_schema(
         bridge_event,
-        video_id="test_vid_2",
+        video_id="clip7",
         event_type="phone_detected",
         seat_id="seat_4B",
         notes="Detected near hand",
+        video_duration=100.0,
     )
 
     assert isinstance(schema_event, Event)
     assert schema_event.event_id == "event_25"
-    assert schema_event.video_id == "test_vid_2"
+    assert schema_event.video_id == "clip7"
+    assert schema_event.camera_id == "cam_clip7"  # Mapped via CAMERA_ID_MAP
+    assert schema_event.exam_phase == "core"      # 50s / 100s = 50% -> core
     assert schema_event.object_detected is True
     assert schema_event.object_confidence == 0.92
     assert schema_event.event_type == "phone_detected"
@@ -109,11 +149,17 @@ def test_adapter_batch_events():
     bridge_events = bridge.get_completed_events()
     assert len(bridge_events) == 2
 
-    schema_events = adapt_bridge_events_to_schema(bridge_events, video_id="exam_hall_c1")
+    schema_events = adapt_bridge_events_to_schema(
+        bridge_events,
+        video_id="exam_hall_c1",
+        video_duration=50.0,
+    )
     assert len(schema_events) == 2
     assert all(isinstance(e, Event) for e in schema_events)
     assert schema_events[0].object_detected is True
     assert schema_events[1].object_detected is False
+    assert schema_events[0].camera_id == "cam_exam_hall_c1"
+    assert schema_events[0].exam_phase == "distribution"
 
 
 def test_adapter_requires_video_id():

@@ -21,6 +21,11 @@ from .detector import detect_objects
 DURATION_SECONDS = 20
 CAMERA_INDEX = 0
 
+# detect_objects() now needs exam_mode -- CBT allows both phone and
+# paper-chit, the closest match to this script's original class-agnostic
+# "detect anything" behavior.
+EXAM_MODE = "CBT"
+
 
 def main():
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -46,12 +51,16 @@ def main():
             break
 
         frame_count += 1
-        detections = detect_objects(frame)
+        # Each live frame is wrapped as its own 1-crop window -- see the
+        # comment in test_detect_real_footage.py / test_detect_webcam.py for
+        # why (detect_objects() is frozen to take a window of crops, not a
+        # single frame).
+        detections = detect_objects([frame], EXAM_MODE)
         if detections:
             frames_with_detection += 1
             total_detections += len(detections)
-            for _, _, conf in detections:
-                max_conf_seen = max(max_conf_seen, conf)
+            for det in detections:
+                max_conf_seen = max(max_conf_seen, det["confidence"])
 
     cap.release()
 

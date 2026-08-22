@@ -6,7 +6,7 @@ for P3's extract_features() wiring (same pattern as the clip3 script).
 Run from repo root:
     uv run python scripts/generate_p3_detection_output_clip1.py
 
-Requires: models/phone_detector_v1.pt already trained, clip1 video file
+Requires: models/phone_detector_v3.pt already trained, clip1 video file
 present locally (adjust VIDEO_PATH below if your filename/path differs).
 
 ASSUMPTION (confirm before trusting output): clip1 = the file

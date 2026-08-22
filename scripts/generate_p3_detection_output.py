@@ -6,7 +6,7 @@ for P3's extract_features() wiring (replacing mock/random object_flag values).
 Run from repo root:
     uv run python scripts/generate_p3_detection_output.py
 
-Requires: models/phone_detector_v1.pt already trained, clip3 video file
+Requires: models/phone_detector_v3.pt already trained, clip3 video file
 present locally (adjust VIDEO_PATH below to your actual file).
 """
 import csv

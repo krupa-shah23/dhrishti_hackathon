@@ -33,6 +33,11 @@ DURATION_SECONDS = 45
 
 CAMERA_INDEX = 0  # change to 1, 2... if you have multiple cameras
 
+# detect_objects() now needs exam_mode -- CBT allows both phone and
+# paper-chit, the closest match to this script's original class-agnostic
+# "detect anything" behavior.
+EXAM_MODE = "CBT"
+
 
 def main():
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -57,16 +62,23 @@ def main():
             break
 
         frame_count += 1
-        detections = detect_objects(frame)
+        # Each live frame is wrapped as its own 1-crop window -- see the
+        # comment in test_detect_real_footage.py for why (detect_objects()
+        # is frozen to take a window of crops, not a single frame; treating
+        # each frame as a degenerate 1-frame window preserves this script's
+        # original per-frame intent).
+        detections = detect_objects([frame], EXAM_MODE)
 
         if detections:
             frames_with_detection += 1
             total_detections += len(detections)
-            for box, cls_name, conf in detections:
+            # The frozen contract's output is just {"class", "confidence"} --
+            # no box anymore, so we can no longer draw a rectangle around the
+            # detected object. Overlay the detections as stacked text instead.
+            for j, det in enumerate(detections):
+                cls_name, conf = det["class"], det["confidence"]
                 max_conf_seen = max(max_conf_seen, conf)
-                x1, y1, x2, y2 = [int(v) for v in box]
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, f"{cls_name} {conf:.2f}", (x1, y1 - 8),
+                cv2.putText(frame, f"{cls_name} {conf:.2f}", (10, 30 + j * 25),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         cv2.imshow("detect_objects() live test — press q to stop", frame)

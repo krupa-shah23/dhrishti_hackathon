@@ -246,16 +246,19 @@ Returns
 ### Detector
 
 ```python
-detect_objects(frame)
+detect_objects(roi_crops_over_window: List, exam_mode: str)
 ```
 
 Returns
 
 ```python
 [
-    (bbox, class_name, confidence)
+    {"class": str, "confidence": float}
 ]
 ```
+
+No box coordinates in the return — that's never been part of the frozen
+contract (the earlier version of this doc was wrong on that point too).
 
 ---
 

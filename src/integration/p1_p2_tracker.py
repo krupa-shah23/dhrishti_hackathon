@@ -25,6 +25,10 @@ try:
     from src.track_det.detector import detect_objects
     from src.track_det.fusion import fuse_track_detections
     from src.track_det.invigilator_filter import is_invigilator_track
+    from src.track_det.reid import PersonStore, extract_embedding
+    from src.integration.person_adapter import adapt_new_or_updated_persons_for_video
+    from src.integration.p2_p3_bridge import P2P3Bridge
+    from src.integration.event_adapter import adapt_bridge_events_to_schema
 except ImportError:
     from ..motion.motion import MotionEstimator
     from ..motion.roi import get_rois
@@ -33,6 +37,10 @@ except ImportError:
     from ..track_det.detector import detect_objects
     from ..track_det.fusion import fuse_track_detections
     from ..track_det.invigilator_filter import is_invigilator_track
+    from ..track_det.reid import PersonStore, extract_embedding
+    from .person_adapter import adapt_new_or_updated_persons_for_video
+    from .p2_p3_bridge import P2P3Bridge
+    from .event_adapter import adapt_bridge_events_to_schema
 
 
 class P1P2TrackerPipeline:
@@ -71,6 +79,8 @@ class P1P2TrackerPipeline:
             use_stabilization=use_stabilization,
         )
         reset_tracker(max_distance=max_distance, max_age=max_age)
+        self.person_store = PersonStore(path="data/persons_store.json")
+        self.track_person_map: Dict[int, str] = {}
 
     def process_frame(
         self,
@@ -86,6 +96,7 @@ class P1P2TrackerPipeline:
         4. Fuse tracks and detections via P2 fusion
         5. Filter invigilator tracks via P2 invigilator filter
         """
+        mask = None
         if rois_override is not None:
             boxes = list(rois_override)
         elif frame is not None:
@@ -103,14 +114,20 @@ class P1P2TrackerPipeline:
 
         # 3. Object Detection (safely isolated)
         detections = []
-        if frame is not None and boxes:
+        if frame is not None:
             try:
                 exam_mode = getattr(self, "exam_mode", "CBT")
-                crops = [frame[int(y1):int(y2), int(x1):int(x2)]
-                         for (x1, y1, x2, y2) in boxes]
+                crops = [frame[int(y1):int(y2), int(x1):int(x2)] for (x1, y1, x2, y2) in boxes] if boxes else [frame]
                 crops = [c for c in crops if c.size > 0]
                 if crops:
-                    detections = detect_objects(crops, exam_mode)
+                    res = detect_objects(crops, exam_mode)
+                    if res:
+                        for i, item in enumerate(res):
+                            if isinstance(item, (tuple, list)) and len(item) == 3:
+                                detections.append(item)
+                            elif isinstance(item, dict):
+                                b = boxes[i] if i < len(boxes) else (0.0, 0.0, float(frame.shape[1]), float(frame.shape[0]))
+                                detections.append((b, item.get("class"), item.get("confidence")))
             except Exception as e:
                 print(f"[pipeline] Exception during detect_objects at frame {frame_index}: {e}")
                 detections = []
@@ -120,11 +137,26 @@ class P1P2TrackerPipeline:
             tracks, detections, containment_thresh=self.containment_thresh
         )
 
-        # 5. Invigilator Filter
+        # 5. Invigilator Filter & Re-ID
         for ft in fused_tracks:
             tid = ft["track_id"]
             track_hist = get_track_history(tid)
             ft["invigilator_flag"] = is_invigilator_track(track_hist)
+
+            if tid not in self.track_person_map and frame is not None:
+                x1, y1, x2, y2 = ft["box"]
+                crop = frame[int(y1):int(y2), int(x1):int(x2)]
+                if crop.size > 0:
+                    try:
+                        emb = extract_embedding(crop)
+                        pid = self.person_store.match_or_create(
+                            emb, video_id=self.clip_name or "unknown"
+                        )
+                        self.track_person_map[tid] = pid
+                    except Exception:
+                        pass
+            if tid in self.track_person_map:
+                ft["person_id"] = self.track_person_map[tid]
 
         return {
             "frame_index": frame_index,
@@ -133,6 +165,7 @@ class P1P2TrackerPipeline:
             "tracks": tracks,
             "detections": detections,
             "fused_tracks": fused_tracks,
+            "motion_mask": mask,  # P1's binary mask this frame, None if not computed (e.g. rois_override path)
         }
 
     def reset(self, max_distance: Optional[float] = None, max_age: Optional[int] = None):
@@ -141,6 +174,14 @@ class P1P2TrackerPipeline:
         """
         self.motion_estimator.reset()
         reset_tracker(max_distance=max_distance, max_age=max_age)
+        self.track_person_map.clear()
+
+    def save_persons(self, path: Optional[str] = None):
+        if self.person_store:
+            try:
+                self.person_store.save(path)
+            except Exception as e:
+                print(f"[pipeline] Warning: could not save persons store: {e}")
 
 
 def process_video_live(
@@ -149,13 +190,16 @@ def process_video_live(
     min_area: int = 500,
     max_distance: Optional[float] = None,
     max_age: Optional[int] = None,
+    on_persons_ready=None,   # optional callback: list[schemas.Person] -> None
+    on_events_ready=None,    # optional callback: list[schemas.Event] -> None, called incrementally
 ) -> Generator[Dict[str, Any], None, None]:
-    """
-    Generator yielding per-frame P1->P2->P3->P4 integrated results for a video file.
-    """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise FileNotFoundError(f"Could not open video: {video_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if not fps or fps <= 0:
+        fps = 25.0  # sane fallback — some containers report 0 for CAP_PROP_FPS
 
     pipeline = P1P2TrackerPipeline(
         clip_name=clip_name,
@@ -163,15 +207,66 @@ def process_video_live(
         max_distance=max_distance,
         max_age=max_age,
     )
+    bridge = P2P3Bridge(fps=fps)
+    video_id = clip_name or "unknown"
+
+    total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    video_duration = (float(total_frames) / fps) if (total_frames and total_frames > 0 and fps > 0) else None
 
     frame_index = 0
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+
         result = pipeline.process_frame(frame, frame_index)
         yield result
+
+        # Feed this frame's fused tracks into the event-finalization bridge.
+        # P2P3Bridge auto-finalizes any track that's gone stale (missing >
+        # missing_threshold frames) — drain whatever finalized THIS frame
+        # and post it now, not at video-end, so a crash loses at most the
+        # in-flight (not-yet-stale) tracks.
+        bridge.process_fused_tracks(
+            result["fused_tracks"], frame_index,
+            frame=frame, motion_mask=result.get("motion_mask"),
+        )
+        newly_finalized = bridge.get_completed_events()
+        if newly_finalized and on_events_ready is not None:
+            # seat_id: not carried by P2P3Bridge's event dict at all today —
+            # genuinely blocked on P1's seat-grid mapping, per the status doc.
+            # Passing None here is honest, not a placeholder bug.
+            adapted = adapt_bridge_events_to_schema(
+                newly_finalized,
+                video_id=video_id,
+                video_duration=video_duration,
+            )
+            on_events_ready(adapted)
+
         frame_index += 1
+
+    # Flush any tracks still active when the video ends (e.g. someone still
+    # in-frame at the last frame) — these never went "stale" so they'd
+    # otherwise be silently dropped.
+    bridge.flush()
+    tail_events = bridge.get_completed_events()
+    if tail_events and on_events_ready is not None:
+        adapted = adapt_bridge_events_to_schema(
+            tail_events,
+            video_id=video_id,
+            video_duration=video_duration,
+        )
+        on_events_ready(adapted)
+
+    pipeline.save_persons()
+
+    persons_for_backend = adapt_new_or_updated_persons_for_video(
+        person_store=pipeline.person_store,
+        video_id=video_id,
+        track_person_map=pipeline.track_person_map,
+    )
+    if on_persons_ready is not None and persons_for_backend:
+        on_persons_ready(persons_for_backend)
 
     cap.release()
 
@@ -220,5 +315,3 @@ def draw_tracks_overlay(
             2,
         )
     return out
-
-

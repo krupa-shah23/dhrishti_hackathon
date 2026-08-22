@@ -27,7 +27,7 @@ from src.track_det.detector import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TEST_DIR = REPO_ROOT / "data" / "roboflow_export" / "test"
+TEST_DIR = REPO_ROOT / "data" / "roboflow_export2" / "test"
 IMAGES_DIR = TEST_DIR / "images"
 LABELS_DIR = TEST_DIR / "labels"
 
@@ -80,7 +80,7 @@ def crop_with_padding(img, x1, y1, x2, y2, pad_frac):
 
 def main():
     if _detector is None:
-        print("[FATAL] Detector weights not loaded — check models/phone_detector_v1.pt exists.")
+        print("[FATAL] Detector weights not loaded — check models/phone_detector_v3.pt exists.")
         return
 
     if not IMAGES_DIR.exists():

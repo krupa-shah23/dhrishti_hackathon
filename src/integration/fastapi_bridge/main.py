@@ -2,11 +2,34 @@ import os
 import asyncio
 import logging
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 
-from schemas import Event, Person, CompleteSignal
-from mock_data import generate_mock_events, generate_mock_person
+# Must run before anything below reads os.environ (BACKEND_URL/USE_MOCK
+# here, GROQ_API_KEY in reasoning_layer.py) -- .env is gitignored and never
+# committed; this just loads it into the process env if present. A real
+# environment variable already set takes precedence (load_dotenv() default:
+# does not override existing os.environ values).
+load_dotenv()
+
+try:
+    from schemas import Event, Person, CompleteSignal
+    from mock_data import generate_mock_events, generate_mock_person
+except ImportError:
+    from .schemas import Event, Person, CompleteSignal
+    from .mock_data import generate_mock_events, generate_mock_person
+
+try:
+    from src.integration.p1_p2_tracker import process_video_live
+except ImportError:
+    try:
+        from ..p1_p2_tracker import process_video_live
+    except (ImportError, ValueError):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from src.integration.p1_p2_tracker import process_video_live
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("fastapi_bridge")
@@ -62,18 +85,65 @@ async def run_pipeline(video_id: str, path: str):
     endpoint contracts below shouldn't need to change.
     """
     async with httpx.AsyncClient(timeout=10.0) as client:
-        person = generate_mock_person(video_id) if USE_MOCK else None
-        if person:
-            await post_person(client, person)
+        if USE_MOCK:
+            person = generate_mock_person(video_id)
+            if person:
+                await post_person(client, person)
 
-        events = generate_mock_events(video_id) if USE_MOCK else []
-        # TODO: replace with real pipeline call, e.g.:
-        # async for event in real_pipeline.stream_events(video_id, path):
-        for event in events:
-            await post_event(client, event)
-            await asyncio.sleep(0.1)  # simulate incremental production
+            events = generate_mock_events(video_id)
+            for event in events:
+                await post_event(client, event)
+                await asyncio.sleep(0.1)  # simulate incremental production
 
-        await post_complete(client, video_id, len(events))
+            await post_complete(client, video_id, len(events))
+            return
+
+        event_count = [0]
+
+        def run_sync():
+            with httpx.Client(timeout=10.0) as sync_client:
+                def on_events_ready(events):
+                    for event in events:
+                        try:
+                            resp = sync_client.post(
+                                f"{BACKEND_URL}/internal/events",
+                                json=event.model_dump(),
+                            )
+                            resp.raise_for_status()
+                            _posted_event_ids.add(event.event_id)
+                            event_count[0] += 1
+                            logger.info(
+                                f"Posted event {event.event_id} ({event.event_type}) for {event.video_id}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to post event {event.event_id}: {e}")
+
+                def on_persons_ready(persons):
+                    for person in persons:
+                        try:
+                            resp = sync_client.post(
+                                f"{BACKEND_URL}/internal/persons",
+                                json=person.model_dump(),
+                            )
+                            resp.raise_for_status()
+                            logger.info(
+                                f"Posted person {person.person_id} for {person.video_id}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to post person {person.person_id}: {e}")
+
+                frames = 0
+                for _ in process_video_live(
+                    path,
+                    clip_name=video_id,
+                    on_events_ready=on_events_ready,
+                    on_persons_ready=on_persons_ready,
+                ):
+                    frames += 1
+                return frames
+
+        await asyncio.to_thread(run_sync)
+        await post_complete(client, video_id, total_events=event_count[0])
 
 
 @app.post("/process")

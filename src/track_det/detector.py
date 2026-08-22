@@ -33,7 +33,7 @@ except ImportError:
     _HAS_ULTRALYTICS = False
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_WEIGHTS = REPO_ROOT / "models" / "phone_detector_v1.pt"
+DEFAULT_WEIGHTS = REPO_ROOT / "models" / "phone_detector_v3.pt"
 
 _detector = None
 if _HAS_ULTRALYTICS and DEFAULT_WEIGHTS.exists():
@@ -47,6 +47,28 @@ else:
 TINY_BOX_AREA_FRACTION = 0.05   # box area < 5% of crop area -> "tiny"
 LOW_CONFIDENCE_THRESHOLD = 0.45  # below this -> worth retrying at higher res
 TILE_UPSCALE_FACTOR = 3
+
+# --- per-class minimum detection confidence (confidence_curve.csv F1 sweep, "all" split) ---
+# phone: 0.30 is the F1-maximizing threshold (0.9125) and edges out the near-tied
+#   0.25 (0.912) on precision (0.9061 vs 0.8874) per class-1 confidence.
+# paper-chit: 0.20, not the raw F1-max of 0.10 (0.9869) — chosen for precision
+#   (0.9907 vs 0.9741) since object confidence here only affects severity, never
+#   gates events, so the conservative side is lower-risk. Also: nearly all chit
+#   ground truth (111/113 "all"-split instances) is in the train split the model
+#   was fit on (valid has 2, test has 0), so the very-low-threshold end of that
+#   curve is not backed by held-out data and shouldn't be trusted at face value.
+# Edit this dict directly to retune; DEFAULT_MIN_CONFIDENCE covers any class
+# not listed here (e.g. "calculator" once it's added) so a new class doesn't
+# silently detect at conf=0.01.
+MIN_DETECTION_CONFIDENCE = {
+    "phone": 0.30,
+    "paper-chit": 0.20,
+}
+DEFAULT_MIN_CONFIDENCE = 0.25
+
+
+def _passes_class_threshold(cls_name: str, confidence: float) -> bool:
+    return confidence >= MIN_DETECTION_CONFIDENCE.get(cls_name, DEFAULT_MIN_CONFIDENCE)
 
 
 def class_filter(exam_mode: str) -> List[str]:
@@ -76,7 +98,10 @@ def yolo_infer(crop, allowed_classes: List[str]) -> List[Dict]:
     if _detector is None or not allowed_classes:
         return []
 
-    results = _detector.predict(crop, verbose=False)
+    # conf=0.01 here is just a floor to get raw candidate boxes out of YOLO —
+    # the real filtering happens below via MIN_DETECTION_CONFIDENCE, which is
+    # per-class and can't be expressed as a single conf= kwarg to predict().
+    results = _detector.predict(crop, conf=0.01, verbose=False)
     detections = []
     for r in results:
         for box in r.boxes:
@@ -85,6 +110,8 @@ def yolo_infer(crop, allowed_classes: List[str]) -> List[Dict]:
             if cls_name not in allowed_classes:
                 continue
             conf = float(box.conf[0])
+            if not _passes_class_threshold(cls_name, conf):
+                continue
             x1, y1, x2, y2 = box.xyxy[0].tolist()
             detections.append({
                 "class": cls_name, "confidence": conf,

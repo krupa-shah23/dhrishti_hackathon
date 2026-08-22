@@ -1,0 +1,41 @@
+event_id,video_id,start,end,seat_id,event_type,notes
+c1_e1,01.Candidate was found using a mobile phone in the examination hall..mkv,00:00:06,,,phone_out,Accused takes out phone
+c1_e2,01.Candidate was found using a mobile phone in the examination hall..mkv,00:00:12,00:00:16,,copying,Copying - photographing the screen
+c1_e3,01.Candidate was found using a mobile phone in the examination hall..mkv,00:00:51,,,copying,"Copying - photographing the screen (single instant, no observed end - confirm with video)"
+c1_e4,01.Candidate was found using a mobile phone in the examination hall..mkv,00:00:55,,,intervention,Someone appears to notice/intervene after the 51s copying event
+c1_e5,01.Candidate was found using a mobile phone in the examination hall..mkv,00:01:08,,,seat_vacated,Accused leaves camera scene
+c2_e1,02.Candidate was found using a mobile phone in the examination hall..mkv,00:00:00,00:03:10,,setup_activity,Exam setup window - setup person present with students; accused looking around before this
+c2_e2,02.Candidate was found using a mobile phone in the examination hall..mkv,00:03:10,,,invigilator_departure,Setup person leaves scene
+c2_e3,02.Candidate was found using a mobile phone in the examination hall..mkv,00:03:26,,,phone_out,Accused takes phone from pocket - no copying observed. Earlier point on the same timeline as clip1
+c3_e1,03.CCTV Mobile Usage.mkv,00:00:00,,,phone_hidden,Phone hidden under t-shirt at start of clip (touching pants, seated)
+c3_e2,03.CCTV Mobile Usage.mkv,00:00:56,,,phone_out,Takes phone out from under t-shirt
+c3_e3,03.CCTV Mobile Usage.mkv,00:01:05,,,copying,"Photographs screen, then hides phone under desk; continues looking at desk"
+c3_e4,03.CCTV Mobile Usage.mkv,00:01:21,00:01:29,,copying,Takes phone out again to photograph screen
+c3_e5,03.CCTV Mobile Usage.mkv,00:01:33,00:01:40,,copying,Takes phone out to copy
+c3_e6,03.CCTV Mobile Usage.mkv,00:01:47,,,copying,"Takes phone out, photographs screen"
+c3_e7,03.CCTV Mobile Usage.mkv,00:02:04,,,copying,"Takes phone out, photographs screen, phone pointed at screen"
+c3_e8,03.CCTV Mobile Usage.mkv,00:02:11,,,phone_hidden,Hides phone in pants
+c3_e9,03.CCTV Mobile Usage.mkv,00:02:11,00:04:11,,fake_studying,Acts as if studying (turning book pages) until end of clip
+c4_e1,04.CCTV Candidate Talking.mkv,00:00:03,00:00:12,,talking,Candidate initiates talking with neighbor (looks around first); faces not visible
+c4_e2,04.CCTV Candidate Talking.mkv,00:01:12,00:01:27,,talking,Second pair talking - backs to camera; faces not visible
+c4_e3,04.CCTV Candidate Talking.mkv,00:01:37,00:01:42,,talking,Same pair re-engages; faces not visible
+c4_e4,04.CCTV Candidate Talking.mkv,00:02:20,00:02:23,,talking,Same pair talking again near end of clip; faces not visible
+c6_e1,06.Candidate was found using a mobile phone in the examination hall.mp4,00:05:57,00:06:21,,phone_out,"Takes phone out from under desk, hidden from camera, copies"
+c6_e2,06.Candidate was found using a mobile phone in the examination hall.mp4,00:07:59,00:08:19,,phone_out,"Takes phone out again, hidden from camera, copies"
+c6_e3,06.Candidate was found using a mobile phone in the examination hall.mp4,00:11:03,00:11:17,,phone_out,Takes phone out then puts back
+c6_e4,06.Candidate was found using a mobile phone in the examination hall.mp4,00:19:41,00:19:52,,phone_out,Takes phone out briefly
+c6_e5,06.Candidate was found using a mobile phone in the examination hall.mp4,00:20:16,00:20:32,,phone_out,Takes phone out briefly
+c6_e6,06.Candidate was found using a mobile phone in the examination hall.mp4,00:37:39,00:39:03,,phone_out,Takes phone out and keeps it out for an extended period
+c6_e7,06.Candidate was found using a mobile phone in the examination hall.mp4,00:43:23,00:43:33,,phone_out,Takes phone out briefly
+c6_e8,06.Candidate was found using a mobile phone in the examination hall.mp4,01:21:15,01:21:34,,phone_out,Takes phone out briefly
+c6_e9,06.Candidate was found using a mobile phone in the examination hall.mp4,01:23:42,01:26:44,,phone_out,"Clustered: 8 closely-spaced phone-out instances (individual gaps <=27s, 01:23:42-01:26:44) collapsed into one representative event, per hysteresis-style clustering rather than logging each instance"
+c6_e10,06.Candidate was found using a mobile phone in the examination hall.mp4,01:26:56,01:27:00,,glance_at_neighbor,Looks at neighboring student's paper - distinct from own phone-out behavior, not merged into the surrounding phone-out cluster
+c6_e11,06.Candidate was found using a mobile phone in the examination hall.mp4,01:27:03,01:29:40,,phone_out,"Clustered: 6 closely-spaced phone-out / looking-around instances (individual gaps <=22s, 01:27:03-01:29:40) collapsed into one representative event"
+c6_e12,06.Candidate was found using a mobile phone in the examination hall.mp4,01:29:40,01:35:25,,invigilator_intervention,Invigilator enters and is present/monitoring for an extended period near the accused; clip ends during this
+c7_e1,"During the exam, the candidates exchanged their seats with each other..mp4",01:11:00,,,pre_incident,Girl starts looking around
+c7_e2,"During the exam, the candidates exchanged their seats with each other..mp4",01:12:18,,,talking,Pair discusses swapping seats
+c7_e3,"During the exam, the candidates exchanged their seats with each other..mp4",01:12:38,,,pre_incident,Girl moves her PC ahead so he can see
+c7_e4,"During the exam, the candidates exchanged their seats with each other..mp4",01:13:11,,,seat_exchange,They physically get up and exchange seats
+c7_e5,"During the exam, the candidates exchanged their seats with each other..mp4",01:13:26,,,invigilator_intervention,Guard checks in
+c7_e6,"During the exam, the candidates exchanged their seats with each other..mp4",01:14:31,,,seat_vacated,Pair asked to leave the room
+c8_e1,Seat No. 12 was seen taking a piece of paper from the desk.mkv,00:00:26,00:01:22,seat_12,copying,Copying from a piece of paper taken from the desk
