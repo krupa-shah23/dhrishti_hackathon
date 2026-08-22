@@ -1,13 +1,14 @@
 """
 P2 module — Detection <-> Track fusion.
 
-`track(boxes)` and `detect_objects(frame)` are two independent per-frame
-outputs — tracking runs on P1's motion ROI boxes, detection runs YOLO on
-the raw frame. Neither knows about the other. This module is the missing
-link: for a given frame, attach the best-matching detection (class,
-confidence) to each track, so downstream (P3's extract_features) can ask
-"was a phone detected on track X at time T" instead of getting two
-disconnected lists.
+`track(boxes)` (per-frame) and `detect_objects(roi_crops_over_window, exam_mode)`
+(per-window, returning [((x1,y1,x2,y2), class_name, confidence), ...]) are two
+independent outputs — tracking runs every frame on P1's motion ROI boxes,
+detection runs YOLO on a buffered window of per-track crops. Neither knows
+about the other. This module is the missing link: for a given frame, attach
+the best-matching detection (class, confidence) to each track, so downstream
+(P3's extract_features) can ask "was a phone detected on track X at time T"
+instead of getting two disconnected lists.
 
 UPDATED: matching changed from per-detection greedy (each detection picks
 its own best-containment track, resolved by highest confidence if two

@@ -43,6 +43,7 @@ def adapt_bridge_event_to_schema(
       - object_detected: maps None -> False, True -> True (strict boolean)
       - object_confidence: event['object_confidence'] (float or None)
       - notes: notes parameter (default None)
+      - boxes: event['boxes'] (per-track list of per-frame (x1,y1,x2,y2) tuples)
     """
     if not video_id:
         raise ValueError("video_id is required to create a valid schemas.Event")
@@ -59,6 +60,8 @@ def adapt_bridge_event_to_schema(
     if object_confidence is not None:
         object_confidence = float(object_confidence)
 
+    boxes = [tuple(b) for b in event.get("boxes", [])]
+
     return Event(
         event_id=event_id,
         video_id=video_id,
@@ -69,6 +72,7 @@ def adapt_bridge_event_to_schema(
         object_detected=object_detected,
         object_confidence=object_confidence,
         notes=notes,
+        boxes=boxes,
     )
 
 

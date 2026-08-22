@@ -1,12 +1,6 @@
-<<<<<<< HEAD
 train: data/roboflow_export/train/images
 val: data/roboflow_export/valid/images
 test: data/roboflow_export/test/images
-=======
-train: data/roboflow_export2/train/images
-val: data/roboflow_export2/valid/images
-test: data/roboflow_export2/test/images
->>>>>>> origin/p2a-p2b-merge
 
 nc: 2
 names: ['paper-chit', 'phone']
@@ -14,10 +8,6 @@ names: ['paper-chit', 'phone']
 roboflow:
   workspace: krupa-shah-9mij4
   project: drishti-phone-chit
-<<<<<<< HEAD
   version: 1
-=======
-  version: 4
->>>>>>> origin/p2a-p2b-merge
   license: Private
   url: https://app.roboflow.com/krupa-shah-9mij4/drishti-phone-chit/1

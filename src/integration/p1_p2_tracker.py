@@ -66,13 +66,14 @@ except ImportError:
 # Number of raw (un-skipped) frame crops buffered per active track for
 # detect_objects(). Decoupled from effective_fps by design (Krupa/P2 decision):
 # occlusion coverage must not collapse to N=1 on long-duration clips that
-# get a low sample rate. 7 raw frames ≈ 0.3s at 22fps (07_seat_exchange.mkv),
-# enough to catch momentary occlusion lift. Memory: ~70 frames × ~700KB =
-# ~50MB peak across 10 active tracks — acceptable; P4 to flag if stress tests
-# show pressure.
+# get a low sample rate. Raised 7 -> 75 (was ~0.3s, real occlusion recovery
+# needs 2-4s): 75 raw frames ~= 3s at 25fps, ~3.4s at 22fps
+# (07_seat_exchange.mkv). Memory tradeoff accepted: ~75 frames x ~700KB =
+# ~52MB peak PER active track, ~520MB across 10 active tracks — P4 to flag
+# if stress tests show pressure.
 # P4 note: this proceeds on P2's authority over the occlusion-handling
 # contract. Loop P4 in if memory pressure appears during Day 5 stress tests.
-N_RAW_WINDOW = 7
+N_RAW_WINDOW = 75
 
 
 class P1P2TrackerPipeline:
@@ -222,7 +223,6 @@ class P1P2TrackerPipeline:
 
         # 3. Object Detection (Windowed + Crop-Slicing)
         detections = []
-<<<<<<< HEAD
         if frame is not None:
             active_tids = set()
             h, w = frame.shape[:2]
@@ -285,19 +285,6 @@ class P1P2TrackerPipeline:
                                 detections.append((abs_box, cls_name, conf))
                     except Exception as e:
                         print(f"[pipeline] Exception during detect_objects for tid {tid} at frame {frame_index}: {e}")
-=======
-        if frame is not None and boxes:
-            try:
-                exam_mode = getattr(self, "exam_mode", "CBT")
-                crops = [frame[int(y1):int(y2), int(x1):int(x2)]
-                         for (x1, y1, x2, y2) in boxes]
-                crops = [c for c in crops if c.size > 0]
-                if crops:
-                    detections = detect_objects(crops, exam_mode)
-            except Exception as e:
-                print(f"[pipeline] Exception during detect_objects at frame {frame_index}: {e}")
-                detections = []
->>>>>>> origin/p2a-p2b-merge
 
         # 4. Fusion
         fused_tracks = fuse_track_detections(

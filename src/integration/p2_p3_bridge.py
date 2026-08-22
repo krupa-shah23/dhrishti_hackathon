@@ -200,7 +200,6 @@ class P2P3Bridge:
         start_frame = track_data["start_frame"]
         end_frame = track_data["end_frame"]
 
-<<<<<<< HEAD
         # --- Severity Scoring (§3.7) ---
         duration_sec = (end_frame - start_frame) / self.fps if self.fps > 0 else 0.0
 
@@ -217,6 +216,10 @@ class P2P3Bridge:
             if m.get("confidence") is not None
         ]
         max_obj_confidence = max(confs) if confs else None
+
+        best_detection = None
+        if track_data["metadata"]:
+            best_detection = max(track_data["metadata"], key=lambda m: m["confidence"] or 0.0)
 
         severity_score = compute_severity(
             motion_intensity=mean_motion,
@@ -252,11 +255,6 @@ class P2P3Bridge:
                     [s for s, c in seat_counts.items() if c == max_count],
                     key=lambda s: -seat_counts[s]
                 )
-=======
-        best_detection = None
-        if track_data["metadata"]:
-            best_detection = max(track_data["metadata"], key=lambda m: m["confidence"] or 0.0)
->>>>>>> origin/p2a-p2b-merge
 
         event = {
             "event_id": track_data["event_id"],

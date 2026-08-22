@@ -1,34 +1,27 @@
 """
 P2 module — Detection.
-<<<<<<< HEAD
-Owns the shared function contract:
-    detect_objects(roi_crops_over_window, exam_mode) -> [boxes, class, conf]
-=======
+Frozen contract:
 
-Frozen contracts (final-implementation-plan-5day.md §2, P2 doc §1):
-
-    detect_objects(roi_crops_over_window, exam_mode) -> [{"class": str, "confidence": float}]
+    detect_objects(roi_crops_over_window, exam_mode)
+        -> [((x1, y1, x2, y2), class_name, confidence), ...]
         Input: a list of ROI crops from consecutive frames within ONE flagged
-        window (P1 hands you a window, never single frames).
-        Output: best-confidence-per-class results across the whole window,
-        sorted highest confidence first. Empty list [] if nothing detected.
-        P3 (Event dict owner) reads this as:
-            result = detect_objects(crops, exam_mode)
-            event["object_detected"]   = result[0]["class"] if result else None
-            event["object_confidence"] = result[0]["confidence"] if result else 0.0
+        window (P1 hands you a window, never single frames). Boxes are in the
+        coordinate space of the crop they were found in; the caller translates
+        them back to absolute frame coordinates.
+        Output: best-confidence-per-class across the whole window, sorted
+        highest confidence first. Empty list [] if nothing detected.
 
-    detect_small_object_tiled(crop, exam_mode=None) -> [{"class": str, "confidence": float}]
-        Sub-routine called BY detect_objects when a crop's best result is
-        low-confidence or the box is tiny — NOT a separate pipeline stage.
+    detect_small_object_tiled(crop, exam_mode=None) -> [{"class","confidence","_box"}]
+        Sub-routine for the low-confidence / tiny-box retry path — NOT a
+        separate pipeline stage. Internal dict shape.
 
 RULE THAT MUST NEVER BE VIOLATED (P2 doc §4.6, §1):
     Your output never gates a flag — it only boosts severity. Never add an
     `if confidence < threshold: suppress_event()` line anywhere in this
     module. If P1's motion+MOG2 fired, the event fires, full stop — a low
     or missing detection here is a valid, honest result, not an error.
->>>>>>> origin/p2a-p2b-merge
 """
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 try:
@@ -74,20 +67,6 @@ LOW_CONFIDENCE_THRESHOLD = 0.45  # below this -> worth retrying at higher res
 TILE_UPSCALE_FACTOR = 3
 
 
-<<<<<<< HEAD
-def detect_objects(roi_crops_over_window: List, exam_mode: str) -> List[Tuple[Tuple[float, float, float, float], str, float]]:
-    """
-    Contract: detect_objects(roi_crops_over_window, exam_mode) -> [boxes, class, conf]
-
-    Returns detections with conf >= MIN_DETECTION_CONFIDENCE only.
-    See constant definition above for threshold rationale and accepted tradeoffs.
-    """
-    if _detector is None or not roi_crops_over_window:
-        return []
-
-    # YOLO predict accepts a list of images natively
-    results = _detector.predict(roi_crops_over_window, verbose=False)
-=======
 def class_filter(exam_mode: str) -> List[str]:
     """
     P2 doc §4.3 — exam-mode class gating. One if statement, lives here,
@@ -116,35 +95,23 @@ def yolo_infer(crop, allowed_classes: List[str]) -> List[Dict]:
         return []
 
     results = _detector.predict(crop, verbose=False)
->>>>>>> origin/p2a-p2b-merge
     detections = []
 
     # We aggregate detections across the entire window
     for r in results:
         for box in r.boxes:
-<<<<<<< HEAD
-            conf = float(box.conf[0])
-            if conf < MIN_DETECTION_CONFIDENCE:
-                continue  # filtered: below P2's confidence threshold
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            cls_id = int(box.cls[0])
-            cls_name = _detector.names[cls_id]
-            detections.append(((x1, y1, x2, y2), cls_name, conf))
-
-    # Remove duplicates or overlapping boxes from multiple frames if needed,
-    # but for now we return all detections found in the window.
-=======
             cls_id = int(box.cls[0])
             cls_name = _detector.names[cls_id]
             if cls_name not in allowed_classes:
                 continue
             conf = float(box.conf[0])
+            if conf < MIN_DETECTION_CONFIDENCE:
+                continue  # below P2's confidence threshold
             x1, y1, x2, y2 = box.xyxy[0].tolist()
             detections.append({
                 "class": cls_name, "confidence": conf,
                 "_box": (x1, y1, x2, y2),  # internal, used for tiny-box check
             })
->>>>>>> origin/p2a-p2b-merge
     return detections
 
 
@@ -187,25 +154,25 @@ def detect_small_object_tiled(crop, exam_mode: Optional[str] = None) -> List[Dic
     return yolo_infer(upsampled, allowed)
 
 
-def _max_confidence_per_class(all_detections: List[Dict]) -> List[Dict]:
-    """Reduces a flat list of {"class","confidence",...} dicts (possibly
+def _max_confidence_per_class(all_detections: List[Dict]) -> List[Tuple[Tuple[float, float, float, float], str, float]]:
+    """Reduces a flat list of {"class","confidence","_box"} dicts (possibly
     with duplicate classes across multiple crops) down to one entry per
-    class — the max confidence seen for that class anywhere in the window.
-    Sorted highest confidence first. Strips the internal "_box" key."""
-    best_per_class: Dict[str, float] = {}
+    class — the max confidence seen for that class anywhere in the window,
+    keeping that detection's box. Returns the frozen tuple shape
+    ((x1,y1,x2,y2), class_name, confidence), highest confidence first."""
+    best: Dict[str, Dict] = {}
     for d in all_detections:
         cls = d["class"]
-        if d["confidence"] > best_per_class.get(cls, 0.0):
-            best_per_class[cls] = d["confidence"]
+        if d["confidence"] > best.get(cls, {}).get("confidence", 0.0):
+            best[cls] = d
+    return [(d.get("_box", (0.0, 0.0, 0.0, 0.0)), cls, d["confidence"])
+            for cls, d in sorted(best.items(), key=lambda kv: kv[1]["confidence"], reverse=True)]
 
-    return [{"class": cls, "confidence": conf}
-            for cls, conf in sorted(best_per_class.items(), key=lambda kv: kv[1], reverse=True)]
 
-
-def detect_objects(roi_crops_over_window: List, exam_mode: str) -> List[Dict]:
+def detect_objects(roi_crops_over_window: List, exam_mode: str) -> List[Tuple[Tuple[float, float, float, float], str, float]]:
     """
     FROZEN CONTRACT: detect_objects(roi_crops_over_window, exam_mode)
-        -> [{"class": str, "confidence": float}]
+        -> [((x1, y1, x2, y2), class_name, confidence), ...]
 
     One call = one flagged window's object read. Runs every crop through
     YOLO (class-filtered by exam_mode), retries low-confidence/tiny results
