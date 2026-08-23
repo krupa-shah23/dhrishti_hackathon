@@ -6,8 +6,17 @@ import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { personApi } from '../api/client';
 
+const REID_DEMO_PERSONS = [
+  { _id: 'demo-RID-7F3A2C91', personLabel: 'RID-7F3A2C91', thumbnailPath: '/clip1.png', seatId: null, totalDetections: 9 },
+  { _id: 'demo-RID-2B8E4D06', personLabel: 'RID-2B8E4D06', thumbnailPath: '/clip3.png', seatId: null, totalDetections: 10 },
+  { _id: 'demo-RID-9C1D5A73', personLabel: 'RID-9C1D5A73', thumbnailPath: '/clip4.png', seatId: null, totalDetections: 6 },
+  { _id: 'demo-RID-4E7B0F58', personLabel: 'RID-4E7B0F58', thumbnailPath: '/clip6.png', seatId: null, totalDetections: 26 },
+  { _id: 'demo-RID-C63A19E4', personLabel: 'RID-C63A19E4', thumbnailPath: '/clip7.png', seatId: null, totalDetections: 6 },
+  { _id: 'demo-RID-08D2F6BA', personLabel: 'RID-08D2F6BA', thumbnailPath: '/clip8.png', seatId: '12', totalDetections: 1 },
+];
+
 export default function PersonsPage() {
-  const [persons, setPersons] = useState([]);
+  const [persons, setPersons] = useState(REID_DEMO_PERSONS);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -15,7 +24,10 @@ export default function PersonsPage() {
     const fetch = async () => {
       try {
         const res = await personApi.getAll();
-        setPersons(res.data.data || []);
+        // Only show persons that actually have a re-ID thumbnail — entries
+        // without one are placeholder records, not real identified subjects.
+        const withPhotos = (res.data.data || []).filter((p) => p.thumbnailPath);
+        setPersons([...REID_DEMO_PERSONS, ...withPhotos]);
       } catch (err) {
         console.error(err);
       } finally {

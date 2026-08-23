@@ -26,6 +26,10 @@ export default function PersonProfilePage() {
   }, [personId]);
 
   const fetchProfile = async () => {
+    if (!personId || personId === 'undefined') {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [personRes, timelineRes, videosRes] = await Promise.all([

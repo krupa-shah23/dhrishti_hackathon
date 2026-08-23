@@ -11,6 +11,7 @@
  */
 
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
 const STAGES = [
   { status: 'ingesting',  stage: 'Ingesting frames',       progress: 15, delay: 3000 },
@@ -48,6 +49,7 @@ async function seedMockEvents(videoId) {
     const actIdx = Math.floor(Math.random() * MOCK_ACTIVITIES.length);
 
     events.push({
+      mlEventId: `mock-${uuidv4()}`,
       videoId,
       activities: MOCK_ACTIVITIES[actIdx],
       confidenceScore: 60 + Math.floor(Math.random() * 35),

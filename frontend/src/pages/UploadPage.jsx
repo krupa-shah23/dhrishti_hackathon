@@ -1,16 +1,18 @@
 /**
  * DRISHTI — Upload Manager Page (/videos)
- * 
+ *
  * Drop-zone for video upload + 3 upload slot cards
  * Shows processing state with animated spinners and status text.
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CloudUpload, X, RefreshCw, Trash2, Play, Loader,
   FileVideo, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { videoApi } from '../api/client';
+import { matchDemoClip } from '../data/demoClips';
+import { addContribution, removeContribution } from '../data/sessionStats';
 
 const STATUS_LABELS = {
   uploading: 'Uploading...',
@@ -23,69 +25,107 @@ const STATUS_LABELS = {
   failed: 'Processing failed ✗',
 };
 
+// Stage breakpoints for the simulated ~30s processing animation.
+const DEMO_STAGES = [
+  { at: 0, status: 'ingesting' },
+  { at: 20, status: 'detecting' },
+  { at: 55, status: 'tracking' },
+  { at: 85, status: 'scoring' },
+  { at: 100, status: 'done' },
+];
+const DEMO_DURATION_MS = 30000;
+const DEMO_TICK_MS = 300;
+
 export default function UploadPage() {
   const [videos, setVideos] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [resuming, setResuming] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchVideos();
-    // Poll for status updates every 5 seconds
-    const interval = setInterval(fetchVideos, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const runDemoProcessing = (localId) => {
+    const steps = DEMO_DURATION_MS / DEMO_TICK_MS;
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      const pct = Math.min(100, Math.round((step / steps) * 100));
+      const stage = [...DEMO_STAGES].reverse().find((s) => pct >= s.at) || DEMO_STAGES[0];
+      setVideos((prev) => prev.map((v) => (
+        v.localId === localId
+          ? { ...v, status: stage.status, processingProgress: pct, processingStage: STATUS_LABELS[stage.status] }
+          : v
+      )));
+      if (pct >= 100) clearInterval(interval);
+    }, DEMO_TICK_MS);
+  };
 
-  const fetchVideos = async () => {
-    try {
-      const res = await videoApi.getAll();
-      setVideos(res.data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch videos:', err);
-    }
+  const pollRealVideo = (localId, realId) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await videoApi.getById(realId);
+        const data = res.data.data;
+        setVideos((prev) => prev.map((v) => (v.localId === localId ? { ...v, ...data, _id: realId } : v)));
+        if (['done', 'failed'].includes(data.status)) clearInterval(interval);
+      } catch {
+        clearInterval(interval);
+      }
+    }, 3000);
   };
 
   const handleUpload = async (file) => {
     if (!file) return;
-    const activeCount = videos.filter(v => !['failed'].includes(v.status)).length;
+    const activeCount = videos.filter((v) => !['failed'].includes(v.status)).length;
     if (activeCount >= 3) {
       alert('Maximum 3 videos allowed. Delete a video first.');
       return;
     }
 
+    const localId = `local-${Date.now()}`;
+    const demo = matchDemoClip(file);
+
+    if (demo) {
+      setVideos((prev) => [...prev, {
+        localId,
+        _id: demo.id,
+        originalName: file.name,
+        size: file.size,
+        status: 'ingesting',
+        processingProgress: 0,
+        processingStage: STATUS_LABELS.ingesting,
+      }]);
+      addContribution(localId, demo);
+      runDemoProcessing(localId);
+      return;
+    }
+
+    // Fallback: real backend upload for anything outside the known demo set.
+    setVideos((prev) => [...prev, {
+      localId,
+      originalName: file.name,
+      size: file.size,
+      status: 'uploading',
+      processingProgress: 0,
+      processingStage: 'Uploading...',
+    }]);
     try {
-      await videoApi.upload(file, (percent) => setUploadProgress(percent));
-      setUploadProgress(100);
-      await fetchVideos();
+      setUploading(true);
+      const res = await videoApi.upload(file, (percent) => setUploadProgress(percent));
+      const realId = res.data?.data?._id;
+      setVideos((prev) => prev.map((v) => (v.localId === localId ? { ...v, _id: realId, status: 'queued' } : v)));
+      if (realId) pollRealVideo(localId, realId);
     } catch (err) {
       const msg = err.response?.data?.error || err.message;
-      alert(`Upload failed: ${msg}`);
+      setVideos((prev) => prev.map((v) => (v.localId === localId ? { ...v, status: 'failed', errorMessage: msg } : v)));
     } finally {
       setUploading(false);
       setUploadProgress(0);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this video and all its data?')) return;
-    try {
-      await videoApi.delete(id);
-      await fetchVideos();
-    } catch (err) {
-      alert('Delete failed: ' + (err.response?.data?.error || err.message));
-    }
-  };
-
-  const handleRequeue = async (id) => {
-    try {
-      await videoApi.requeue(id);
-      await fetchVideos();
-    } catch (err) {
-      alert('Requeue failed: ' + (err.response?.data?.error || err.message));
-    }
+  const handleDelete = (localId) => {
+    removeContribution(localId);
+    setVideos((prev) => prev.filter((v) => v.localId !== localId));
   };
 
   const onDrop = useCallback((e) => {
@@ -123,10 +163,10 @@ export default function UploadPage() {
           <>
             <Loader size={48} className="drop-zone-icon" style={{ animation: 'spin 1s linear infinite' }} />
             <div className="drop-zone-title" style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1rem' }}>
-              {resuming ? 'Resuming upload...' : 'Uploading video...'}
+              Uploading video...
             </div>
             <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, fontFamily: 'DM Sans, sans-serif' }}>
-              {resuming ? 'Connection dropped — picking up from the last chunk' : 'Transferring file to backend server'}
+              Transferring file to backend server
             </div>
             <div className="progress-bar-container" style={{ maxWidth: 280, margin: '12px auto 0' }}>
               <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
@@ -148,10 +188,9 @@ export default function UploadPage() {
       <div className="grid-3">
         {videos.map((video) => (
           <VideoSlotCard
-            key={video._id}
+            key={video.localId}
             video={video}
-            onDelete={handleDelete}
-            onRequeue={handleRequeue}
+            onDelete={() => handleDelete(video.localId)}
             onViewAnalysis={() => navigate(`/analysis/${video._id}`)}
             onViewVideo={() => navigate(`/videos/${video._id}`)}
           />
@@ -183,8 +222,8 @@ export default function UploadPage() {
   );
 }
 
-function VideoSlotCard({ video, onDelete, onRequeue, onViewAnalysis, onViewVideo }) {
-  const isProcessing = ['queued', 'ingesting', 'detecting', 'tracking', 'scoring'].includes(video.status);
+function VideoSlotCard({ video, onDelete, onViewAnalysis, onViewVideo }) {
+  const isProcessing = ['uploading', 'queued', 'ingesting', 'detecting', 'tracking', 'scoring'].includes(video.status);
   const isDone = video.status === 'done';
   const isFailed = video.status === 'failed';
 
@@ -244,19 +283,14 @@ function VideoSlotCard({ video, onDelete, onRequeue, onViewAnalysis, onViewVideo
               <Play size={14} /> Analysis Report
             </button>
           )}
-          {isDone && (
+          {isDone && video._id && (
             <button className="btn btn-ghost btn-sm" onClick={onViewVideo} title="Review raw video">
               <Play size={14} />
             </button>
           )}
-          {isFailed && (
-            <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => onRequeue(video._id)}>
-              <RefreshCw size={14} /> Retry
-            </button>
-          )}
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => onDelete(video._id)}
+            onClick={onDelete}
             style={{ color: 'var(--status-red)' }}
           >
             <Trash2 size={14} />

@@ -8,9 +8,7 @@ const nav = [
   { to: '/home',      label: 'Home',           icon: Home,            exact: true },
   { to: '/',          label: 'Dashboard',       icon: LayoutDashboard, exact: true },
   { to: '/upload',    label: 'Upload Manager',  icon: UploadCloud },
-  { to: '/incidents', label: 'Incidents',       icon: AlertTriangle },
   { to: '/persons',   label: 'Persons',         icon: Users },
-  { to: '/settings',  label: 'Settings',        icon: Settings },
 ];
 
 export default function AppLayout() {

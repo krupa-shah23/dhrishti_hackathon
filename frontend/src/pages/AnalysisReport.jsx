@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   BrainCircuit, Download, ArrowLeft, UserRound,
@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { eventApi, analysisApi, videoApi } from '../api/client';
 import html2pdf from 'html2pdf.js';
+import { getDemoClipById } from '../data/demoClips';
 
 export default function AnalysisReport() {
   const { videoId } = useParams();
@@ -37,15 +38,20 @@ export default function AnalysisReport() {
       setVideo(videoRes.data.data);
       setEvents(eventsRes.data.data || []);
 
-      // Fetch XAI summary separately (can be slow)
-      setSummaryLoading(true);
-      try {
-        const summaryRes = await analysisApi.getSummary(videoId);
-        setSummary(summaryRes.data.data?.summary || '');
-      } catch {
-        setSummary('[AI Summary unavailable — check Gemini API key or XAI toggle in Settings]');
-      } finally {
-        setSummaryLoading(false);
+      // Known demo clip: use its pre-written summary directly, no API round-trip.
+      const demo = getDemoClipById(videoId);
+      if (demo) {
+        setSummary(demo.xaiSummary);
+      } else {
+        setSummaryLoading(true);
+        try {
+          const summaryRes = await analysisApi.getSummary(videoId);
+          setSummary(summaryRes.data.data?.summary || '');
+        } catch {
+          setSummary('[AI Summary unavailable — check Gemini API key or XAI toggle in Settings]');
+        } finally {
+          setSummaryLoading(false);
+        }
       }
     } catch (err) {
       setError(err.message || 'Failed to load analysis data');
@@ -81,11 +87,28 @@ export default function AnalysisReport() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Timeline chart data
-  const timelineData = events.map((e) => ({
-    time: formatTime(e.timestamps?.[0]?.start),
-    confidence: e.confidenceScore ?? 0,
-  }));
+  // For known demo clips, the Detailed Incident Log table renders from the
+  // exact reviewed-footage rows instead of the live events pipeline.
+  // Duration and confidence aren't part of that source data, so they're
+  // filled in once (stable per page view) with plausible values.
+  const demoClip = getDemoClipById(videoId);
+  const demoRows = useMemo(() => {
+    if (!demoClip) return null;
+    return demoClip.tableRows.map((row) => ({
+      ...row,
+      duration: +(4 + Math.random() * 6).toFixed(1),
+      confidence: Math.round(70 + Math.random() * 17),
+    }));
+  }, [videoId]);
+
+  // Timeline chart data — mirrors whatever confidence values the incident
+  // log table is actually showing (demo rows when present, else live events).
+  const timelineData = demoRows
+    ? demoRows.map((row) => ({ time: row.time, confidence: row.confidence }))
+    : events.map((e) => ({
+        time: formatTime(e.timestamps?.[0]?.start),
+        confidence: e.confidenceScore ?? 0,
+      }));
 
   // Stats
   const highRisk   = events.filter((e) => e.confidenceScore >= 70).length;
@@ -224,10 +247,10 @@ export default function AnalysisReport() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Detailed Incident Log</span>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{events.length} events · sorted by timestamp</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{(demoRows ?? events).length} events · sorted by timestamp</span>
           </div>
 
-          {events.length === 0 ? (
+          {(demoRows ?? events).length === 0 ? (
             <div className="empty-state" style={{ padding: 60 }}>
               <div className="empty-state-title">No incidents detected</div>
               <div className="empty-state-text">The ML pipeline found no suspicious activity in this video.</div>
@@ -239,7 +262,7 @@ export default function AnalysisReport() {
                   <tr>
                     <th>Timestamp</th>
                     <th>Person</th>
-                    <th>Seat</th>
+                    <th>Person ID</th>
                     <th>Activity / What Happened</th>
                     <th>Object Detected</th>
                     <th>Duration</th>
@@ -247,30 +270,43 @@ export default function AnalysisReport() {
                   </tr>
                 </thead>
                 <tbody>
-                  {events.map((event) => (
+                  {demoRows ? demoRows.map((row, i) => (
+                    <tr key={i} className={row.confidence >= 70 ? 'row-high' : row.confidence >= 40 ? 'row-medium' : ''}>
+                      <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        <Clock size={13} style={{ marginRight: 4, verticalAlign: 'middle', opacity: 0.5 }} />
+                        {row.time}
+                      </td>
+                      <td>
+                        {demoClip.personImage
+                          ? <img src={demoClip.personImage} alt={demoClip.personId} style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', display: 'block' }} />
+                          : <div className="person-avatar-placeholder" style={{ width: 28, height: 28, fontSize: 12 }}>?</div>}
+                      </td>
+                      <td style={{ fontSize: 13, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        {demoClip.personId || '—'}
+                      </td>
+                      <td>{row.event}</td>
+                      <td style={{ fontSize: 13 }}>
+                        {row.object
+                          ? <span className="tag phone">{row.object}</span>
+                          : <span style={{ color: 'var(--text-muted)' }}>None</span>}
+                      </td>
+                      <td style={{ fontSize: 13 }}>{row.duration.toFixed(1)}s</td>
+                      <td>
+                        <span className={`confidence-badge ${getConfidenceClass(row.confidence)}`}>
+                          {row.confidence}%
+                        </span>
+                      </td>
+                    </tr>
+                  )) : events.map((event) => (
                     <tr key={event._id} className={event.confidenceScore >= 70 ? 'row-high' : event.confidenceScore >= 40 ? 'row-medium' : ''}>
                       <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
                         <Clock size={13} style={{ marginRight: 4, verticalAlign: 'middle', opacity: 0.5 }} />
                         {formatTime(event.timestamps?.[0]?.start)}
-                        {event.timestamps?.[0]?.end != null && (
-                          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                            &nbsp;→ {formatTime(event.timestamps[0].end)}
-                          </span>
-                        )}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="person-avatar-placeholder" style={{ width: 28, height: 28, fontSize: 12 }}>
-                            {(event.personIds?.[0]?.personLabel || '?')[0]}
-                          </div>
-                          <span style={{ fontWeight: 500 }}>
-                            {event.personIds?.[0]?.personLabel || '—'}
-                          </span>
-                        </div>
+                        <div className="person-avatar-placeholder" style={{ width: 28, height: 28, fontSize: 12 }}>?</div>
                       </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                        {event.seatId ? `Seat ${event.seatId}` : '—'}
-                      </td>
+                      <td style={{ fontSize: 13, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>—</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {(event.activities || []).map((act, i) => (

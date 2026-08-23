@@ -21,6 +21,7 @@ RULE THAT MUST NEVER BE VIOLATED (P2 doc §4.6, §1):
     module. If P1's motion+MOG2 fired, the event fires, full stop — a low
     or missing detection here is a valid, honest result, not an error.
 """
+import os
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
@@ -56,22 +57,35 @@ MIN_DETECTION_CONFIDENCE = 0.35
 _detector = None
 if _HAS_ULTRALYTICS and DEFAULT_WEIGHTS.exists():
     _detector = YOLO(str(DEFAULT_WEIGHTS))
-    # CPU forced. GPU was re-validated with numpy<2 pinned (the earlier
-    # segfault's real cause -- see below) and is genuinely faster when it
-    # works (0.14-1.19s/frame vs CPU's growing-but-under-2s per frame in
-    # the same run), but it STILL crashes: 2/2 GPU re-test runs segfaulted
-    # inside torch.nn.functional.silu (YOLO's SiLU activation forward,
-    # same signature both times) -- once during import before frame 0,
-    # once at frame 12 after 11 real successful frames. numpy<2 delayed
-    # the CPU crash (frame 3 -> ~14) and delayed/varied the GPU crash too,
-    # but did not eliminate it on GPU. This points to a real, additional
-    # GPU-specific instability (likely CUDA memory/context handling across
-    # repeated inference calls on this RTX 3050 6GB + mediapipe's CPU
-    # delegate sharing the process) beyond the numpy ABI issue -- not
-    # something to re-attempt without deeper native-level debugging
-    # (pinned CUDA/cuDNN/torch versions, or isolating YOLO into a separate
-    # process from mediapipe). Do not re-flip this without that.
-    _DETECTOR_DEVICE = "cuda"
+    # Device is machine-dependent, NOT safe to hardcode -- confirmed broken
+    # in two different ways on two different machines so far, same RTX 3050
+    # 6GB GPU model both times:
+    #   Machine A: 2/2 GPU runs segfaulted inside torch.nn.functional.silu
+    #     (YOLO's SiLU activation forward) -- once on import before frame 0,
+    #     once at frame 12 after 11 good frames. numpy<2 delayed it (frame
+    #     3 -> ~14 on CPU) but did not eliminate it on GPU.
+    #   Machine B (this one, numpy<2 + mediapipe pinned per requirements):
+    #     no segfault, but real full-pipeline inference on a real clip
+    #     degraded badly under sustained load -- per-frame time climbed
+    #     from ~0.2s to 1.8s+ avg over the first 1029/5304 frames, with
+    #     individual frames spiking to 30-54s. GPU-util was only ~26% and
+    #     VRAM 137/6144MiB at the time (not a VRAM-exhaustion or driver-TDR
+    #     event -- checked, no nvlddmkm reset in the Windows event log), so
+    #     the bottleneck was not confirmed as GPU-specific before the
+    #     investigation was stopped. Root cause not found on either machine.
+    # Opt in explicitly per-machine only after a full real clip (thousands
+    # of frames, not a short isolation test) has actually run clean AND
+    # fast on that machine -- default is cpu everywhere until then.
+    _DETECTOR_DEVICE = os.environ.get("DRISHTI_DETECTOR_DEVICE", "cpu").strip().lower()
+    if _DETECTOR_DEVICE == "cuda":
+        import torch
+        if not torch.cuda.is_available():
+            print("[detector] DRISHTI_DETECTOR_DEVICE=cuda requested but no CUDA device "
+                  "available -- falling back to cpu.")
+            _DETECTOR_DEVICE = "cpu"
+    elif _DETECTOR_DEVICE != "cpu":
+        print(f"[detector] Unrecognized DRISHTI_DETECTOR_DEVICE={_DETECTOR_DEVICE!r} -- using cpu.")
+        _DETECTOR_DEVICE = "cpu"
     _detector.to(_DETECTOR_DEVICE)
     print(f"[detector] Loaded detector weights: {DEFAULT_WEIGHTS} (device={_DETECTOR_DEVICE})")
 else:

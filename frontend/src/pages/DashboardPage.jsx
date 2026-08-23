@@ -13,6 +13,7 @@ import {
 import { Video, Users, AlertTriangle, TrendingUp } from 'lucide-react';
 import { dashboardApi } from '../api/client';
 import BorderGlow from '../components/ui/BorderGlow';
+import { getAggregateDelta } from '../data/sessionStats';
 
 // Colorful palette for the charts
 const DONUT_COLORS = ['#14b8a6', '#f43f5e', '#f59e0b', '#8b5cf6', '#10b981', '#ec4899', '#06b6d4'];
@@ -52,11 +53,29 @@ export default function DashboardPage() {
     );
   }
 
-  const donutData = stats?.incidentDistribution?.map((item) => ({
+  // Session deltas from clips uploaded/removed this session (localStorage),
+  // layered on top of the backend's stored totals.
+  const delta = getAggregateDelta();
+
+  const baseDist = (stats?.incidentDistribution || []).map((item) => ({
     name: item.activity?.replace(/_/g, ' ') || 'Unknown',
-    value: item.count,
-    percentage: item.percentage,
-  })) || [];
+    count: item.count,
+  }));
+  Object.entries(delta.categories).forEach(([name, count]) => {
+    const existing = baseDist.find((d) => d.name.toLowerCase() === name.toLowerCase());
+    if (existing) existing.count += count;
+    else baseDist.push({ name, count });
+  });
+  const distTotal = baseDist.reduce((s, d) => s + d.count, 0) || 1;
+
+  const donutData = baseDist
+    .map((d) => ({
+      name: d.name,
+      value: d.count,
+      percentage: Math.round((d.count / distTotal) * 100),
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, 6);
 
   // Teal/Turquoise glow settings for BorderGlow
   const glowColorHSL = "173 100 40"; 
@@ -79,7 +98,7 @@ export default function DashboardPage() {
                 <Video size={28} />
               </div>
               <div>
-                <div className="stat-value">{stats?.totalVideosProcessed || 0}</div>
+                <div className="stat-value">{(stats?.totalVideosProcessed || 0) + delta.videos}</div>
                 <div className="stat-label">Total Videos Processed</div>
               </div>
             </div>
@@ -97,7 +116,7 @@ export default function DashboardPage() {
                 <Users size={28} />
               </div>
               <div>
-                <div className="stat-value">{stats?.totalPersonsCaught || 0}</div>
+                <div className="stat-value">{(stats?.totalPersonsCaught || 0) + delta.persons}</div>
                 <div className="stat-label">Total Persons Caught Copying</div>
               </div>
             </div>
@@ -115,7 +134,7 @@ export default function DashboardPage() {
                 <AlertTriangle size={28} />
               </div>
               <div>
-                <div className="stat-value">{stats?.totalIncidents || 0}</div>
+                <div className="stat-value">{(stats?.totalIncidents || 0) + delta.incidents}</div>
                 <div className="stat-label">Total Incidents Detected</div>
               </div>
             </div>
@@ -197,7 +216,7 @@ export default function DashboardPage() {
               <div className="card-body" style={{ flex: 1 }}>
                 {donutData.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {donutData.slice(0, 5).map((item, idx) => (
+                    {donutData.map((item, idx) => (
                       <div key={idx}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                           <span style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }}>
