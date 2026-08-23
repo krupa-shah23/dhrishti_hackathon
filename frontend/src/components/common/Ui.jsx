@@ -1,0 +1,5 @@
+import { FileVideo, Trash2 } from 'lucide-react'; // shared primitive icons
+export const Card = ({children,className=''}) => <section className={`card ${className}`}>{children}</section>;
+export function StatCard({label,value,danger,icon:Icon}) { return <Card className="stat-card"><div><p>{label}</p><strong className={danger ? 'danger' : ''}>{value}</strong></div><div className={`stat-icon ${danger ? 'danger-bg' : ''}`}><Icon size={28}/></div></Card> }
+export function VideoThumbnail({color='#324b76'}) { return <div className="video-thumb" style={{background:color}}><FileVideo size={31}/><span>CAM 04</span></div> }
+export function UploadSlot({file,index,onPick,onRemove}) { return <div className={`upload-slot ${file ? 'filled' : ''}`}>{file ? <><FileVideo/><div><b>{file.name}</b><small>{(file.size/1024/1024).toFixed(1)} MB · ready to analyze</small></div><button aria-label="Remove video" onClick={onRemove}><Trash2 size={17}/></button></> : <label>+ Add Video (Slot {index + 1})<input type="file" accept=".mp4,.avi,.mov,video/mp4,video/avi,video/quicktime" onChange={e => onPick(e.target.files)}/></label>}</div> }
