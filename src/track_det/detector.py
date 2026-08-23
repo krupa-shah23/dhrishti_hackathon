@@ -71,7 +71,7 @@ if _HAS_ULTRALYTICS and DEFAULT_WEIGHTS.exists():
     # something to re-attempt without deeper native-level debugging
     # (pinned CUDA/cuDNN/torch versions, or isolating YOLO into a separate
     # process from mediapipe). Do not re-flip this without that.
-    _DETECTOR_DEVICE = "cpu"
+    _DETECTOR_DEVICE = "cuda"
     _detector.to(_DETECTOR_DEVICE)
     print(f"[detector] Loaded detector weights: {DEFAULT_WEIGHTS} (device={_DETECTOR_DEVICE})")
 else:
