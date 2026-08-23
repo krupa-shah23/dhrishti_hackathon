@@ -1,0 +1,9 @@
+event_id,window_start_s,window_end_s,class,confidence,note
+c3_e1,0,1.5,,0.0,detect_objects() returned [] for this window
+c3_e2,54.5,57.5,,0.0,detect_objects() returned [] for this window
+c3_e3,63.5,66.5,,0.0,detect_objects() returned [] for this window
+c3_e4,79.5,90.5,phone,0.484,
+c3_e5,91.5,101.5,phone,0.5186,
+c3_e6,105.5,108.5,phone,0.4147,
+c3_e7,122.5,125.5,,0.0,detect_objects() returned [] for this window
+c3_e8,129.5,132.5,,0.0,detect_objects() returned [] for this window

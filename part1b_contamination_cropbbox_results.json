@@ -1,0 +1,27 @@
+{
+  "camera12_clip4": {
+    "clip": "04_candidate_talking.mkv",
+    "total_boxes": 1908,
+    "contaminated_total": 2176,
+    "pair_counts": {
+      "seat_61|seat_66": 1004,
+      "seat_61|seat_65": 406,
+      "seat_60|seat_64": 260,
+      "seat_60|seat_61": 204,
+      "seat_64|seat_65": 302
+    }
+  },
+  "dahisar1_clip07": {
+    "clip": "07_seat_exchange.mkv",
+    "total_boxes": 6520,
+    "contaminated_total": 6552,
+    "pair_counts": {
+      "seat_4|seat_5": 1647,
+      "seat_1|seat_2": 1860,
+      "seat_5|seat_6": 1229,
+      "seat_3|seat_4": 788,
+      "seat_4|seat_6": 173,
+      "seat_2|seat_3": 855
+    }
+  }
+}

@@ -1,0 +1,560 @@
+{
+  "clip": "clip4",
+  "gated_count": 130,
+  "merges_at_2s": [
+    {
+      "gap": -17.0,
+      "seats": [
+        "seat_63"
+      ],
+      "a_event_id": "event_4",
+      "a_start": 0.0,
+      "a_end": 17.0,
+      "b_event_id": "event_3",
+      "b_start": 0.0,
+      "b_end": 32.0
+    },
+    {
+      "gap": -3.375,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_7",
+      "a_start": 0.125,
+      "a_end": 3.5,
+      "b_event_id": "event_9",
+      "b_start": 0.125,
+      "b_end": 3.5
+    },
+    {
+      "gap": -3.375,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_9",
+      "a_start": 0.125,
+      "a_end": 3.5,
+      "b_event_id": "event_10",
+      "b_start": 0.125,
+      "b_end": 5.75
+    },
+    {
+      "gap": -8.25,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_12",
+      "a_start": 1.875,
+      "a_end": 10.25,
+      "b_event_id": "event_13",
+      "b_start": 2.0,
+      "b_end": 10.375
+    },
+    {
+      "gap": -7.875,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_13",
+      "a_start": 2.0,
+      "a_end": 10.375,
+      "b_event_id": "event_14",
+      "b_start": 2.5,
+      "b_end": 27.0
+    },
+    {
+      "gap": -3.25,
+      "seats": [
+        "seat_60"
+      ],
+      "a_event_id": "event_16",
+      "a_start": 4.75,
+      "a_end": 8.0,
+      "b_event_id": "event_17",
+      "b_start": 4.75,
+      "b_end": 17.5
+    },
+    {
+      "gap": -10.5,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_17",
+      "a_start": 4.75,
+      "a_end": 17.5,
+      "b_event_id": "event_19",
+      "b_start": 7.0,
+      "b_end": 46.25
+    },
+    {
+      "gap": -39.0,
+      "seats": [
+        "seat_60",
+        "seat_64"
+      ],
+      "a_event_id": "event_19",
+      "a_start": 7.0,
+      "a_end": 46.25,
+      "b_event_id": "event_20",
+      "b_start": 7.25,
+      "b_end": 12.625
+    },
+    {
+      "gap": -38.875,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_20",
+      "a_start": 7.25,
+      "a_end": 12.625,
+      "b_event_id": "event_21",
+      "b_start": 7.375,
+      "b_end": 11.125
+    },
+    {
+      "gap": -3.125,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_23",
+      "a_start": 12.25,
+      "a_end": 15.375,
+      "b_event_id": "event_24",
+      "b_start": 12.25,
+      "b_end": 17.375
+    },
+    {
+      "gap": -4.375,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_24",
+      "a_start": 12.25,
+      "a_end": 17.375,
+      "b_event_id": "event_25",
+      "b_start": 13.0,
+      "b_end": 43.875
+    },
+    {
+      "gap": -30.875,
+      "seats": [
+        "seat_60"
+      ],
+      "a_event_id": "event_28",
+      "a_start": 18.625,
+      "a_end": 49.75,
+      "b_event_id": "event_29",
+      "b_start": 18.875,
+      "b_end": 42.75
+    },
+    {
+      "gap": -11.125,
+      "seats": [
+        "seat_65"
+      ],
+      "a_event_id": "event_31",
+      "a_start": 20.5,
+      "a_end": 31.75,
+      "b_event_id": "event_32",
+      "b_start": 20.625,
+      "b_end": 43.625
+    },
+    {
+      "gap": -9.5,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_35",
+      "a_start": 23.125,
+      "a_end": 34.125,
+      "b_event_id": "event_36",
+      "b_start": 24.625,
+      "b_end": 61.125
+    },
+    {
+      "gap": -18.125,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_37",
+      "a_start": 25.75,
+      "a_end": 44.125,
+      "b_event_id": "event_41",
+      "b_start": 26.0,
+      "b_end": 32.25
+    },
+    {
+      "gap": -18.125,
+      "seats": [
+        "seat_65"
+      ],
+      "a_event_id": "event_41",
+      "a_start": 26.0,
+      "a_end": 32.25,
+      "b_event_id": "event_40",
+      "b_start": 26.0,
+      "b_end": 35.125
+    },
+    {
+      "gap": -18.125,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_40",
+      "a_start": 26.0,
+      "a_end": 35.125,
+      "b_event_id": "event_39",
+      "b_start": 26.0,
+      "b_end": 35.625
+    },
+    {
+      "gap": -17.125,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_39",
+      "a_start": 26.0,
+      "a_end": 35.625,
+      "b_event_id": "event_42",
+      "b_start": 27.0,
+      "b_end": 56.125
+    },
+    {
+      "gap": -27.25,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_42",
+      "a_start": 27.0,
+      "a_end": 56.125,
+      "b_event_id": "event_43",
+      "b_start": 28.875,
+      "b_end": 34.125
+    },
+    {
+      "gap": -27.25,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_43",
+      "a_start": 28.875,
+      "a_end": 34.125,
+      "b_event_id": "event_44",
+      "b_start": 28.875,
+      "b_end": 46.0
+    },
+    {
+      "gap": -27.125,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_44",
+      "a_start": 28.875,
+      "a_end": 46.0,
+      "b_event_id": "event_45",
+      "b_start": 29.0,
+      "b_end": 44.25
+    },
+    {
+      "gap": -27.125,
+      "seats": [
+        "seat_61",
+        "seat_66"
+      ],
+      "a_event_id": "event_45",
+      "a_start": 29.0,
+      "a_end": 44.25,
+      "b_event_id": "event_46",
+      "b_start": 29.0,
+      "b_end": 50.75
+    },
+    {
+      "gap": -26.5,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_46",
+      "a_start": 29.0,
+      "a_end": 50.75,
+      "b_event_id": "event_47",
+      "b_start": 29.625,
+      "b_end": 37.5
+    },
+    {
+      "gap": -8.75,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_54",
+      "a_start": 45.25,
+      "a_end": 54.0,
+      "b_event_id": "event_53",
+      "b_start": 45.25,
+      "b_end": 68.25
+    },
+    {
+      "gap": -23.0,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_53",
+      "a_start": 45.25,
+      "a_end": 68.25,
+      "b_event_id": "event_55",
+      "b_start": 45.25,
+      "b_end": 68.25
+    },
+    {
+      "gap": -23.0,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_55",
+      "a_start": 45.25,
+      "a_end": 68.25,
+      "b_event_id": "event_56",
+      "b_start": 45.25,
+      "b_end": 115.375
+    },
+    {
+      "gap": -2.0,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_57",
+      "a_start": 45.625,
+      "a_end": 48.875,
+      "b_event_id": "event_58",
+      "b_start": 46.875,
+      "b_end": 135.875
+    },
+    {
+      "gap": -1.125,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_61",
+      "a_start": 47.75,
+      "a_end": 51.0,
+      "b_event_id": "event_62",
+      "b_start": 49.875,
+      "b_end": 58.375
+    },
+    {
+      "gap": -44.625,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_66",
+      "a_start": 53.625,
+      "a_end": 98.25,
+      "b_event_id": "event_65",
+      "b_start": 53.625,
+      "b_end": 106.375
+    },
+    {
+      "gap": -52.0,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_65",
+      "a_start": 53.625,
+      "a_end": 106.375,
+      "b_event_id": "event_67",
+      "b_start": 54.375,
+      "b_end": 63.0
+    },
+    {
+      "gap": -51.625,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_67",
+      "a_start": 54.375,
+      "a_end": 63.0,
+      "b_event_id": "event_68",
+      "b_start": 54.75,
+      "b_end": 61.875
+    },
+    {
+      "gap": -48.0,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_68",
+      "a_start": 54.75,
+      "a_end": 61.875,
+      "b_event_id": "event_69",
+      "b_start": 58.375,
+      "b_end": 74.875
+    },
+    {
+      "gap": -47.625,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_69",
+      "a_start": 58.375,
+      "a_end": 74.875,
+      "b_event_id": "event_70",
+      "b_start": 58.75,
+      "b_end": 61.875
+    },
+    {
+      "gap": -5.625,
+      "seats": [],
+      "a_event_id": "event_73",
+      "a_start": 63.125,
+      "a_end": 69.375,
+      "b_event_id": "event_74",
+      "b_start": 63.75,
+      "b_end": 68.875
+    },
+    {
+      "gap": -3.625,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_81",
+      "a_start": 71.875,
+      "a_end": 75.5,
+      "b_event_id": "event_83",
+      "b_start": 71.875,
+      "b_end": 79.125
+    },
+    {
+      "gap": -7.25,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_83",
+      "a_start": 71.875,
+      "a_end": 79.125,
+      "b_event_id": "event_82",
+      "b_start": 71.875,
+      "b_end": 91.375
+    },
+    {
+      "gap": -3.125,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_90",
+      "a_start": 77.875,
+      "a_end": 82.75,
+      "b_event_id": "event_91",
+      "b_start": 79.625,
+      "b_end": 90.625
+    },
+    {
+      "gap": -2.625,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_94",
+      "a_start": 82.75,
+      "a_end": 86.625,
+      "b_event_id": "event_96",
+      "b_start": 84.0,
+      "b_end": 87.25
+    },
+    {
+      "gap": -10.0,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_101",
+      "a_start": 92.0,
+      "a_end": 102.0,
+      "b_event_id": "event_102",
+      "b_start": 92.0,
+      "b_end": 131.625
+    },
+    {
+      "gap": -3.375,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_108",
+      "a_start": 94.625,
+      "a_end": 98.0,
+      "b_event_id": "event_107",
+      "b_start": 94.625,
+      "b_end": 110.0
+    },
+    {
+      "gap": -13.75,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_113",
+      "a_start": 101.5,
+      "a_end": 120.5,
+      "b_event_id": "event_115",
+      "b_start": 106.75,
+      "b_end": 143.0
+    },
+    {
+      "gap": -35.875,
+      "seats": [
+        "seat_61"
+      ],
+      "a_event_id": "event_115",
+      "a_start": 106.75,
+      "a_end": 143.0,
+      "b_event_id": "event_116",
+      "b_start": 107.125,
+      "b_end": 119.125
+    },
+    {
+      "gap": -4.0,
+      "seats": [
+        "seat_60"
+      ],
+      "a_event_id": "event_124",
+      "a_start": 116.875,
+      "a_end": 120.875,
+      "b_event_id": "event_125",
+      "b_start": 116.875,
+      "b_end": 136.25
+    },
+    {
+      "gap": -8.375,
+      "seats": [
+        "seat_64"
+      ],
+      "a_event_id": "event_126",
+      "a_start": 123.0,
+      "a_end": 131.625,
+      "b_event_id": "event_127",
+      "b_start": 123.25,
+      "b_end": 143.0
+    },
+    {
+      "gap": -2.75,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_136",
+      "a_start": 140.125,
+      "a_end": 143.0,
+      "b_event_id": "event_137",
+      "b_start": 140.25,
+      "b_end": 143.0
+    },
+    {
+      "gap": -2.5,
+      "seats": [
+        "seat_66"
+      ],
+      "a_event_id": "event_137",
+      "a_start": 140.25,
+      "a_end": 143.0,
+      "b_event_id": "event_138",
+      "b_start": 140.5,
+      "b_end": 143.0
+    }
+  ],
+  "final_confirmed": 84,
+  "final_clusters": 77
+}

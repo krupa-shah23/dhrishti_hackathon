@@ -1,0 +1,23 @@
+{
+  "camera_id": "cam_clip7",
+  "grid_cells": [
+    {
+      "seat_id": "seat_12",
+      "bbox": [
+        7,
+        188,
+        171,
+        377
+      ]
+    },
+    {
+      "seat_id": "seat_13",
+      "bbox": [
+        135,
+        139,
+        348,
+        263
+      ]
+    }
+  ]
+}

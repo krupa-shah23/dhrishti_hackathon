@@ -1,0 +1,15 @@
+image,gt_class,gt_box_area_frac,baseline_hit,baseline_confidence,tiled_hit,tiled_confidence,improved,regressed,raw_baseline_confidence,raw_tiled_confidence,raw_confidence_delta
+01-Candidate_was_found_using_a_mobile_phone_in_the_examination_hall-_f0000370_t00014-8s_jpg.rf.7323d68b04b6bb7c0738f0348a8c3a74.jpg,phone,0.0018,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+01-Candidate_was_found_using_a_mobile_phone_in_the_examination_hall-_f0001224_t00049-0s_jpg.rf.3b9d2e770d3fc3a6fae153fa269a8583.jpg,phone,0.0015,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+02-Candidate_was_found_using_a_mobile_phone_in_the_examination_hall-_f0005288_t00211-5s_jpg.rf.f812d8ae1d2c810f109de0b1c7f9f29d.jpg,phone,0.0021,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+03-CCTV_Mobile_Usage_f0000785_t00065-0s_jpg.rf.1e93d264881ee0fc83d26dfe92aa2d95.jpg,phone,0.0019,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+03-CCTV_Mobile_Usage_f0001080_t00089-4s_jpg.rf.f5a26872753f5e4a1622ff4420e44f1a.jpg,phone,0.0023,False,0.0,False,0.0,False,False,0.2348,0.2069,-0.028
+03-CCTV_Mobile_Usage_f0001164_t00096-3s_jpg.rf.65f2bb20d3b5c45d42222db53ae354cf.jpg,phone,0.0017,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+03-CCTV_Mobile_Usage_f0001322_t00109-4s_jpg.rf.4ef22af3e7aade63be47ed0952af85e0.jpg,phone,0.0024,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+03-CCTV_Mobile_Usage_f0001346_t00111-4s_jpg.rf.148dbd5ba18f4f054486337d8dce4e6d.jpg,phone,0.002,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0000599_t00024-0s_jpg.rf.e0a99e6cffbbfb8753d8da7bcbcb3fa4.jpg,paper-chit,0.0003,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0001163_t00046-5s_jpg.rf.c7cac2e34ebe0e616393d6552d713543.jpg,paper-chit,0.0015,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0001295_t00051-8s_jpg.rf.ff07dcf7c4cc5b04d1aab2c6879ef518.jpg,paper-chit,0.0016,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0001487_t00059-5s_jpg.rf.b87d06045bfaad8e1ca790fedf365059.jpg,paper-chit,0.001,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0001619_t00064-8s_jpg.rf.f803a9b30720862df08d85da178fd3d2.jpg,paper-chit,0.0012,False,0.0,False,0.0,False,False,0.0,0.0,0.0
+Seat_No-_12_was_seen_taking_a_piece_of_paper_from_the_desk_f0001691_t00067-6s_jpg.rf.df66603bbe4853aa9f205c31df8bd311.jpg,paper-chit,0.0007,False,0.0,False,0.0,False,False,0.0,0.0,0.0
