@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { EyeOff, Download, Play, Pause } from 'lucide-react';
 import { videoApi, eventApi } from '../api/client';
+import { getDemoClipById, parseClipTime } from '../data/demoClips';
 
 export default function VideoReviewPage() {
   const { videoId } = useParams();
@@ -33,10 +34,22 @@ export default function VideoReviewPage() {
   }, [videoId]);
 
   useEffect(() => {
-    if (videoRef.current && seekTo > 0) {
-      videoRef.current.currentTime = seekTo;
+    const videoEl = videoRef.current;
+    if (!videoEl || seekTo <= 0) return;
+    const seek = () => { videoEl.currentTime = seekTo; };
+    if (videoEl.readyState >= 1) {
+      // Metadata (and duration) already available — safe to seek now.
+      seek();
+    } else {
+      videoEl.addEventListener('loadedmetadata', seek, { once: true });
+      return () => videoEl.removeEventListener('loadedmetadata', seek);
     }
   }, [video, seekTo]);
+
+  // Known demo clip for this video: reuses the hardcoded personId/personBbox
+  // mapping so the flagged person's box can be highlighted without a real
+  // ML tracking pipeline.
+  const demoClip = getDemoClipById(videoId);
 
   const fetchData = async () => {
     try {
@@ -98,12 +111,42 @@ export default function VideoReviewPage() {
         }
       }
 
+      // Flagged-person highlight for known demo clips: red box over the
+      // hardcoded personBbox while playback is inside that incident's window.
+      if (demoClip?.personBbox) {
+        const activeRow = demoClip.tableRows
+          .filter((row) => {
+            const start = parseClipTime(row.time);
+            return currentTime >= start && currentTime <= start + 6;
+          })
+          .pop();
+
+        if (activeRow) {
+          const { x, y, w, h } = demoClip.personBbox;
+          const boxX = x * canvas.width;
+          const boxY = y * canvas.height;
+          const boxW = w * canvas.width;
+          const boxH = h * canvas.height;
+
+          ctx.strokeStyle = '#F04438';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+          const label = demoClip.personId;
+          ctx.font = '12px Inter, sans-serif';
+          ctx.fillStyle = '#F04438';
+          ctx.fillRect(boxX, boxY - 18, ctx.measureText(label).width + 8, 18);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(label, boxX + 4, boxY - 5);
+        }
+      }
+
       requestAnimationFrame(drawFrame);
     };
 
     const animId = requestAnimationFrame(drawFrame);
     return () => cancelAnimationFrame(animId);
-  }, [currentTime, trackingData, video]);
+  }, [currentTime, trackingData, video, demoClip]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
