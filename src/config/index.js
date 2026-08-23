@@ -26,4 +26,12 @@ module.exports = {
 
   // ML microservice
   mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
+  // Gate for routes/videos.js's executeMockPipeline auto-trigger (register/
+  // upload/requeue). Defaults true (current/unchanged behavior) so nothing
+  // breaks for existing dev/demo flows that rely on the mock pipeline's
+  // fake Person/Event/status progression when no real ML backend is wired
+  // up. Set USE_MOCK_PIPELINE=false once the real ML service at
+  // mlServiceUrl is actually driving these videos via /process, to stop it
+  // racing on Video.status against real pipeline runs.
+  useMockPipeline: process.env.USE_MOCK_PIPELINE !== 'false',
 };

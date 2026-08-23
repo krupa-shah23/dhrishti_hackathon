@@ -62,13 +62,15 @@ router.post('/register', async (req, res, next) => {
       status: 'queued',
     });
 
-    // Launch mock pipeline asynchronously
-    try {
-      const { executeMockPipeline } = require('../queues/mockPipeline');
-      executeMockPipeline(video._id);
-      console.log(`📤  Started mock pipeline for registered video: ${originalName}`);
-    } catch (pipelineErr) {
-      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+    // Launch mock pipeline asynchronously (gated: see config.useMockPipeline)
+    if (config.useMockPipeline) {
+      try {
+        const { executeMockPipeline } = require('../queues/mockPipeline');
+        executeMockPipeline(video._id);
+        console.log(`📤  Started mock pipeline for registered video: ${originalName}`);
+      } catch (pipelineErr) {
+        console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+      }
     }
 
     res.status(201).json({ success: true, data: video });
@@ -111,12 +113,15 @@ router.post('/upload', upload.single('video'), async (req, res, next) => {
     });
 
     // Launch in-memory mock pipeline directly (bypassing Redis/BullMQ for local dev)
-    try {
-      const { executeMockPipeline } = require('../queues/mockPipeline');
-      executeMockPipeline(video._id); // Run asynchronously
-      console.log(`📤  Started mock pipeline for video: ${video.originalName}`);
-    } catch (pipelineErr) {
-      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+    // (gated: see config.useMockPipeline)
+    if (config.useMockPipeline) {
+      try {
+        const { executeMockPipeline } = require('../queues/mockPipeline');
+        executeMockPipeline(video._id); // Run asynchronously
+        console.log(`📤  Started mock pipeline for video: ${video.originalName}`);
+      } catch (pipelineErr) {
+        console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+      }
     }
 
     res.status(201).json({ success: true, data: video });
@@ -262,12 +267,14 @@ router.post('/:id/requeue', async (req, res, next) => {
     video.errorMessage = null;
     await video.save();
 
-    // Launch in-memory mock pipeline directly
-    try {
-      const { executeMockPipeline } = require('../queues/mockPipeline');
-      executeMockPipeline(video._id);
-    } catch (pipelineErr) {
-      console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+    // Launch in-memory mock pipeline directly (gated: see config.useMockPipeline)
+    if (config.useMockPipeline) {
+      try {
+        const { executeMockPipeline } = require('../queues/mockPipeline');
+        executeMockPipeline(video._id);
+      } catch (pipelineErr) {
+        console.warn('⚠️  Failed to start mock pipeline:', pipelineErr.message);
+      }
     }
 
     res.json({ success: true, message: 'Video requeued for processing', data: video });
