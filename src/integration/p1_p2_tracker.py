@@ -75,6 +75,26 @@ except ImportError:
 # contract. Loop P4 in if memory pressure appears during Day 5 stress tests.
 N_RAW_WINDOW = 75
 
+# Motion-intensity floor for running detect_objects()/pose analysis on a
+# given frame. frame_motion_intensity is the fused per-frame signal already
+# computed every frame in process_frame() (motion.py's motion_intensity()),
+# reused here, not invented -- but the THRESHOLD value needed picking.
+# event_clustering.segment_events()'s motion_threshold=0.05 was tried first
+# (reusing an already-validated constant seemed safer than picking a new
+# number) but is calibrated for a DIFFERENT signal: per-EVENT avg/peak
+# motion_intensity aggregated over a whole finalized track, not this raw
+# PER-FRAME value. Measured live on a real clip: frame_motion_intensity
+# never exceeded ~0.01 even during real, confirmed subject motion (small
+# on-desk movement is a tiny fraction of full-frame pixels) -- 0.05 gated
+# detect_objects() closed on 100% of frames, silently disabling detection
+# entirely. Lowered to a value just above the literal-zero-motion floor
+# (override-mode/no-frame branches force exactly 0.0) so it excludes only
+# genuinely dead frames, not real activity. Same tuning-debt caveat as
+# detector.py's MIN_DETECTION_CONFIDENCE: a placeholder pending real
+# ground-truth calibration, not a validated P2 number -- documented here so
+# it isn't mistaken for one.
+DETECT_GATE_MOTION_THRESHOLD = 0.001
+
 
 class P1P2TrackerPipeline:
     """
@@ -132,6 +152,30 @@ class P1P2TrackerPipeline:
         # See N_RAW_WINDOW constant above for justification.
         self.window_size = N_RAW_WINDOW
         self.track_crop_buffer = collections.defaultdict(lambda: collections.deque(maxlen=self.window_size))
+        # Parallel to track_crop_buffer: the video frame_index each buffered
+        # crop came from (same maxlen, slides together), so we know exactly
+        # which frame_indices are still "in window" without re-deriving it.
+        self.track_frame_indices = collections.defaultdict(lambda: collections.deque(maxlen=self.window_size))
+        # Per-track rolling detect_objects() result cache: tid -> {frame_index: [(bbox,cls,conf),...]}.
+        # detect_objects() is now called ONLY with crop(s) added since the
+        # last call for that track (see process_frame), not the whole
+        # buffered window every frame -- this cache is what preserves the
+        # original "~2-4s window considered for max-confidence matching"
+        # occlusion-handling contract despite that: each per-call result is
+        # kept here, pruned whenever its frame_index falls out of the
+        # window (mirrors track_crop_buffer's own eviction), and merged to
+        # best-confidence-per-class every frame -- the same reduction
+        # detect_objects() itself does internally when given a whole
+        # window in one call, just computed incrementally instead of
+        # redundantly re-run on unchanged crops every frame.
+        self.track_detection_cache: Dict[int, Dict[int, List[Tuple]]] = collections.defaultdict(dict)
+        # Newest frame_index already sent to detect_objects() per track, so
+        # "crops added since the last call" is well-defined even when the
+        # motion gate below skips several consecutive frames for a track
+        # (the next ungated frame then sends the whole gap's new crops in
+        # one batched call, not just the single newest one -- avoids
+        # silently losing coverage on frames the gate skipped).
+        self.track_last_detected_frame: Dict[int, int] = {}
         print(f"[pipeline] Initialized with exam_mode={self.exam_mode}, "
               f"window_size={self.window_size} raw frames (decoupled from fps)")
 
@@ -226,7 +270,7 @@ class P1P2TrackerPipeline:
         if frame is not None:
             active_tids = set()
             h, w = frame.shape[:2]
-            
+
             # Extract current crop for each active track
             for tr in tracks:
                 tid = tr["track_id"]
@@ -234,28 +278,48 @@ class P1P2TrackerPipeline:
                 x1, y1, x2, y2 = map(int, tr["box"])
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
-                
+
                 if x2 > x1 and y2 > y1:
                     crop = frame[y1:y2, x1:x2].copy()
                     self.track_crop_buffer[tid].append(crop)
-            
+                    self.track_frame_indices[tid].append(frame_index)
+
             # Clean up stale tracks from buffer, evict from pose analyzer
             for tid in list(self.track_crop_buffer.keys()):
                 if tid not in active_tids:
                     del self.track_crop_buffer[tid]
+                    self.track_frame_indices.pop(tid, None)
+                    self.track_detection_cache.pop(tid, None)
+                    self.track_last_detected_frame.pop(tid, None)
                     self.pose_analyzer.evict_track(tid)
+
+            # Real motion gate (was: "if len(crop_list) > 0", i.e. no gate at
+            # all beyond "track exists"). frame_motion_intensity is already
+            # computed once per frame above (motion.py's motion_intensity()
+            # on the fused mask) -- reused here, not a new signal. Gates the
+            # EXPENSIVE per-frame work (detect_objects/pose calls) only;
+            # track creation, motion-flag, and the event itself are never
+            # gated by this -- matches this codebase's own
+            # object/pose-never-gates-the-flag rule.
+            motion_gate_open = frame_motion_intensity >= DETECT_GATE_MOTION_THRESHOLD
 
             # Stage C: Pose/Gesture analysis on flagged crops (same gate as Stage B)
             # Pass only the LATEST crop per track (single-frame pose is sufficient;
-            # temporal state is maintained inside PoseGestureAnalyzer)
+            # temporal state is maintained inside PoseGestureAnalyzer), and only
+            # for tracks passing the motion gate -- per pose_gesture.py's own
+            # update() docstring: "Only flagged (motion-gated) tracks should be
+            # included here. Mirrors the existing pattern for detect_objects()
+            # calls" -- this was the documented intended contract, not
+            # previously implemented.
             latest_crops = {}
             track_boxes = {}
-            for tr in tracks:
-                tid = tr["track_id"]
-                track_boxes[tid] = tr["box"]
-                crop_list = list(self.track_crop_buffer[tid])
-                if crop_list:
-                    latest_crops[tid] = crop_list[-1]
+            if motion_gate_open:
+                for tr in tracks:
+                    tid = tr["track_id"]
+                    track_boxes[tid] = tr["box"]
+                    crop_list = list(self.track_crop_buffer[tid])
+                    if crop_list:
+                        latest_crops[tid] = crop_list[-1]
 
             pose_signals_this_frame = self.pose_analyzer.update(
                 frame_index=frame_index,
@@ -265,26 +329,67 @@ class P1P2TrackerPipeline:
             )
             for tid, sigs in pose_signals_this_frame.items():
                 self.pose_signal_buffer[tid].extend(sigs)
-            
-            # Call detector per active track using its accumulated crops
+
+            # Call detector per active track -- but only with crop(s) added
+            # since the LAST detect_objects call for that track (not the
+            # whole buffered window every frame, which was the O(n^2)
+            # blowup: window_size grows every frame a track stays active,
+            # and the whole window was re-sent to YOLO on every one of
+            # those frames). The occlusion-handling contract (max-confidence
+            # over the same ~2-4s/N_RAW_WINDOW span P2 tuned) is preserved
+            # via track_detection_cache below, NOT by shrinking the window:
+            # each call's result is cached per-frame-index, pruned exactly
+            # when that frame_index falls out of track_frame_indices (mirrors
+            # track_crop_buffer's own deque(maxlen=window_size) eviction),
+            # and merged to best-confidence-per-class every frame -- the
+            # same reduction detect_objects() does internally for a
+            # whole-window call, just computed incrementally so unchanged
+            # crops are never re-inferred.
             for tid in active_tids:
                 crop_list = list(self.track_crop_buffer[tid])
-                if len(crop_list) > 0:
-                    try:
-                        # print(f"[pipeline] Calling detect_objects for tid {tid} with {len(crop_list)} crops")
-                        track_dets = detect_objects(crop_list, self.exam_mode)
-                        
-                        # Translate detection boxes (relative to crop) back to absolute frame coordinates
-                        current_box = next((tr["box"] for tr in tracks if tr["track_id"] == tid), None)
-                        if current_box and track_dets:
-                            bx1, by1, _, _ = map(int, current_box)
-                            bx1, by1 = max(0, bx1), max(0, by1)
-                            for (bbox, cls_name, conf) in track_dets:
-                                rx1, ry1, rx2, ry2 = bbox
-                                abs_box = (rx1 + bx1, ry1 + by1, rx2 + bx1, ry2 + by1)
-                                detections.append((abs_box, cls_name, conf))
-                    except Exception as e:
-                        print(f"[pipeline] Exception during detect_objects for tid {tid} at frame {frame_index}: {e}")
+                frame_idx_list = list(self.track_frame_indices[tid])
+                if not crop_list:
+                    continue
+
+                if motion_gate_open:
+                    last_detected = self.track_last_detected_frame.get(tid, -1)
+                    new_pairs = [(f, c) for f, c in zip(frame_idx_list, crop_list) if f > last_detected]
+                    if new_pairs:
+                        new_frame_idxs, new_crops = zip(*new_pairs)
+                        try:
+                            new_dets = detect_objects(list(new_crops), self.exam_mode)
+                        except Exception as e:
+                            print(f"[pipeline] Exception during detect_objects for tid {tid} at frame {frame_index}: {e}")
+                            new_dets = []
+                        self.track_detection_cache[tid][new_frame_idxs[-1]] = new_dets
+                        self.track_last_detected_frame[tid] = new_frame_idxs[-1]
+
+                # Prune cached results whose frame_index has fallen out of
+                # the buffered window (same window track_crop_buffer uses).
+                in_window = set(frame_idx_list)
+                cache = self.track_detection_cache[tid]
+                for stale_fidx in [f for f in cache if f not in in_window]:
+                    del cache[stale_fidx]
+
+                # Merge all still-in-window per-frame results to
+                # best-confidence-per-class (mirrors detect_objects()'s own
+                # whole-window reduction).
+                best_per_class: Dict[str, Tuple[Tuple[float, float, float, float], str, float]] = {}
+                for dets in cache.values():
+                    for (bbox, cls_name, conf) in dets:
+                        if cls_name not in best_per_class or conf > best_per_class[cls_name][2]:
+                            best_per_class[cls_name] = (bbox, cls_name, conf)
+                track_dets = sorted(best_per_class.values(), key=lambda d: d[2], reverse=True)
+
+                # Translate detection boxes (relative to crop) back to absolute frame coordinates
+                current_box = next((tr["box"] for tr in tracks if tr["track_id"] == tid), None)
+                if current_box and track_dets:
+                    bx1, by1, _, _ = map(int, current_box)
+                    bx1, by1 = max(0, bx1), max(0, by1)
+                    for (bbox, cls_name, conf) in track_dets:
+                        rx1, ry1, rx2, ry2 = bbox
+                        abs_box = (rx1 + bx1, ry1 + by1, rx2 + bx1, ry2 + by1)
+                        detections.append((abs_box, cls_name, conf))
 
         # 4. Fusion
         fused_tracks = fuse_track_detections(
@@ -346,6 +451,9 @@ class P1P2TrackerPipeline:
         """
         self.motion_estimator.reset()
         self.track_crop_buffer.clear()
+        self.track_frame_indices.clear()
+        self.track_detection_cache.clear()
+        self.track_last_detected_frame.clear()
         self.pose_signal_buffer.clear()
         self.pose_analyzer.close()
         self.pose_analyzer = PoseGestureAnalyzer(fps=self.fps)

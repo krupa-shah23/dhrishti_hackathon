@@ -5,9 +5,17 @@ fastapi==0.115.0
 uvicorn[standard]==0.31.0
 pymongo==4.9.0
 redis==5.1.0
+requests>=2.31.0
 python-dotenv==1.0.1
 opencv-python-headless==4.10.0.84
-numpy>=1.26.0
+# <2 required: mediapipe (0.10.x) declares numpy<2, and installing
+# ultralytics unconstrained pulled numpy 2.4.6 in, which reproducibly
+# segfaulted inside torch's CPU inference path after a few frames of real
+# pipeline use (numpy 2.0's C-API/ABI break against extensions compiled
+# against numpy 1.x). Pin verified live: same crash reproduced within 3
+# frames on numpy 2.4.6, delayed to ~14 frames on 1.26.4 (residual crash
+# risk still not fully eliminated -- see detector.py's CPU-device comment).
+numpy>=1.26.0,<2
 ultralytics>=8.2.0
 mediapipe>=0.10.14
 pydantic>=2.9.0

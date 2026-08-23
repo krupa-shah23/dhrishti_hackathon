@@ -253,3 +253,6 @@ node_modules/
 uploads/
 dist/
 *.log
+
+# TUS resumable-upload temp session files (backend/src/routes/tusUpload.js)
+tus-tmp/

@@ -14,15 +14,18 @@ import json
 import time
 import cv2
 import numpy as np
+import requests
 from bson import ObjectId
 from datetime import datetime
 
 import config as cfg
-from db import videos_col, events_col, persons_col, person_video_map_col
+from db import videos_col, persons_col, person_video_map_col
 from status_updater import update_status
 
 # Add the ML pipeline codebase to Python path
 sys.path.insert(0, cfg.ML_PIPELINE_PATH)
+
+from src.integration.event_adapter import adapt_bridge_event_to_node_payload
 
 
 def run_pipeline(video_id: str, video_path: str, filename: str):
@@ -111,7 +114,14 @@ def run_pipeline(video_id: str, video_path: str, filename: str):
                         "w": float(box[2] - box[0]),
                         "h": float(box[3] - box[1]),
                         "class": ft.get("class"),
-                        "confidence": float(ft.get("confidence", 0)),
+                        # ft.get("confidence", 0) breaks when the key is
+                        # present but explicitly None (no detection matched
+                        # this track this frame) -- .get()'s default only
+                        # covers a MISSING key, so float(None) crashed here
+                        # on every real clip. Pre-existing bug, unrelated to
+                        # the events-write rewire below; fixed to unblock
+                        # the real end-to-end smoke test.
+                        "confidence": float(ft.get("confidence") or 0),
                         "time": round(frame_index / fps, 3),
                     })
                 tracking_frames[str(frame_index)] = frame_bboxes
@@ -157,25 +167,30 @@ def run_pipeline(video_id: str, video_path: str, filename: str):
             # Determine activities
             activities = _classify_activities(event, features)
 
-            # Write Event to MongoDB
-            event_doc = {
-                "videoId": ObjectId(video_id),
-                "personIds": [person_oid],
-                "activities": activities,
-                "confidenceScore": round(risk_score * 100, 1),
-                "timestamps": [{
-                    "start": round(event["start_time"], 2),
-                    "end": round(event["end_time"], 2),
-                }],
-                "duration": round(event["end_time"] - event["start_time"], 2),
-                "objectDetected": _get_object_class(event),
-                "seatId": None,  # TODO: seat grid mapping
-                "colorTag": _get_color_for_track(event["track_id"]),
-                "createdAt": datetime.utcnow(),
-                "updatedAt": datetime.utcnow(),
-            }
-
-            events_col().insert_one(event_doc)
+            # Write Event via the tested /internal/events contract (idempotent
+            # on mlEventId) instead of a direct events_col().insert_one() --
+            # raw inserts have no mlEventId, which E11000-collides with the
+            # unique index on the second event of any video (confirmed live).
+            # colorTag/thumbnailPath/explanation/heatmapRef are NOT part of
+            # this contract yet (event_adapter.py doesn't produce them) --
+            # they stay unset here, same as before this rewire never set
+            # thumbnailPath/explanation/heatmapRef either; colorTag is the
+            # one field this drops that the old insert_one did set.
+            payload = adapt_bridge_event_to_node_payload(
+                event,
+                video_id=video_id,
+                activities=activities,
+                confidence_score=round(risk_score * 100, 1),
+                person_ids=[str(person_oid)],
+                duration=round(event["end_time"] - event["start_time"], 2),
+            )
+            resp = requests.post(f"{cfg.BACKEND_URL}/internal/events", json=payload, timeout=10)
+            resp.raise_for_status()
+            event_doc = resp.json()["data"]
+            # event_doc["_id"] comes back as a JSON string, not a bson
+            # ObjectId -- _update_person_video_map below pushes it into a
+            # $push on an ObjectId-typed array, so cast it back.
+            event_doc["_id"] = ObjectId(event_doc["_id"])
 
             # Update PersonVideoMap
             _update_person_video_map(person_oid, video_id, event_doc)

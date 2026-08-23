@@ -11,6 +11,12 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 ML_SERVICE_PORT = int(os.getenv("ML_SERVICE_PORT", "8000"))
 
+# backend/'s Node server -- pipeline_runner.py posts events here
+# (POST /internal/events, /internal/complete/:video_id) instead of writing
+# to the events collection directly. Default matches backend/'s own
+# config.port default (backend/src/config/index.js).
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
+
 # Path to the existing DRISHTI ML pipeline codebase
 ML_PIPELINE_PATH = os.getenv(
     "ML_PIPELINE_PATH",

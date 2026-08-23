@@ -21,6 +21,7 @@ const {
   dashboardRoutes,
   analysisRoutes,
   settingsRoutes,
+  internalRoutes,
 } = require('./routes');
 
 const app = express();
@@ -62,6 +63,7 @@ app.use('/api/persons', personRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/internal', internalRoutes);
 
 // ─── 404 handler ───
 app.use((_req, res) => {

@@ -56,7 +56,24 @@ MIN_DETECTION_CONFIDENCE = 0.35
 _detector = None
 if _HAS_ULTRALYTICS and DEFAULT_WEIGHTS.exists():
     _detector = YOLO(str(DEFAULT_WEIGHTS))
-    print(f"[detector] Loaded detector weights: {DEFAULT_WEIGHTS}")
+    # CPU forced. GPU was re-validated with numpy<2 pinned (the earlier
+    # segfault's real cause -- see below) and is genuinely faster when it
+    # works (0.14-1.19s/frame vs CPU's growing-but-under-2s per frame in
+    # the same run), but it STILL crashes: 2/2 GPU re-test runs segfaulted
+    # inside torch.nn.functional.silu (YOLO's SiLU activation forward,
+    # same signature both times) -- once during import before frame 0,
+    # once at frame 12 after 11 real successful frames. numpy<2 delayed
+    # the CPU crash (frame 3 -> ~14) and delayed/varied the GPU crash too,
+    # but did not eliminate it on GPU. This points to a real, additional
+    # GPU-specific instability (likely CUDA memory/context handling across
+    # repeated inference calls on this RTX 3050 6GB + mediapipe's CPU
+    # delegate sharing the process) beyond the numpy ABI issue -- not
+    # something to re-attempt without deeper native-level debugging
+    # (pinned CUDA/cuDNN/torch versions, or isolating YOLO into a separate
+    # process from mediapipe). Do not re-flip this without that.
+    _DETECTOR_DEVICE = "cpu"
+    _detector.to(_DETECTOR_DEVICE)
+    print(f"[detector] Loaded detector weights: {DEFAULT_WEIGHTS} (device={_DETECTOR_DEVICE})")
 else:
     print(f"[detector] Weights not found at {DEFAULT_WEIGHTS} "
           f"— detect_objects() will return [] until this is set.")

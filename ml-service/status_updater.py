@@ -32,7 +32,23 @@ STAGE_MAP = {
 def _get_redis():
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        # socket_connect_timeout/socket_timeout are REQUIRED here -- without
+        # them this client has no bounded timeout at all, and every
+        # update_status() call (fired on every stage transition + every 5%
+        # progress tick) can block the calling thread for a long,
+        # unbounded time when Redis is unreachable. Root-caused live: the
+        # main pipeline thread was found stuck inside redis/connection.py's
+        # _connect() via this exact client, not in YOLO/mediapipe/CUDA as
+        # first suspected. Mirrors the same "fail fast" fix already applied
+        # on the Node side (backend/src/queues/index.js's producerConnection:
+        # maxRetriesPerRequest: 1, connectTimeout: 1500) -- this was the
+        # missing Python-side equivalent. retry_on_timeout=False so a
+        # timed-out attempt doesn't retry internally before falling through
+        # to update_status()'s own try/except -> _direct_mongo_update fallback.
+        _redis_client = redis.Redis(
+            host=REDIS_HOST, port=REDIS_PORT, decode_responses=True,
+            socket_connect_timeout=1.5, socket_timeout=1.5, retry_on_timeout=False,
+        )
     return _redis_client
 
 

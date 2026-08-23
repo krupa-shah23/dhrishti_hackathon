@@ -80,6 +80,10 @@ def adapt_bridge_event_to_node_payload(
     event: Dict[str, Any],
     video_id: str,
     seat_id: Optional[str] = None,
+    activities: Optional[List[str]] = None,
+    confidence_score: Optional[float] = None,
+    person_ids: Optional[List[str]] = None,
+    duration: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Converts a P2P3Bridge completed event dict into the exact JSON shape
@@ -134,6 +138,24 @@ def adapt_bridge_event_to_node_payload(
         event_id caused the real Node smoke test's second video's event to
         upsert onto (steal/reassign) the first video's event document. The
         video_id prefix is required for correctness, not just convention.
+
+    activities, confidence_score, person_ids, duration: optional passthrough
+        params, NOT computed here. These come from P3-side/caller-specific
+        logic that has no home in this pure P2P3Bridge-event reshaper:
+        activities from ml-service/pipeline_runner.py's
+        _classify_activities(event, features) (features come from P3's
+        extract_features(), outside this event dict); confidence_score from
+        its _compute_risk_score(event, features) * 100 (Event.js's
+        confidenceScore is 0-100, see Event.js:47); person_ids from its
+        _get_or_create_person(...) (a stateful Mongo lookup/insert -- doing
+        that inside this function would give a pure reshaper DB side
+        effects, wrong layering). Callers without this data (e.g. main.py's
+        fastapi_bridge /process path) simply omit these kwargs; defaults
+        below match Event.js's own schema defaults so omitting them is a
+        no-op change for existing callers. `duration` is the one exception
+        with a real, non-fabricated default: end_time - start_time is
+        correct for ANY caller, not pipeline_runner-specific, so it's
+        auto-computed from the event itself when not explicitly passed.
     """
     if not video_id:
         raise ValueError("video_id is required to build a Node event payload")
@@ -150,6 +172,9 @@ def adapt_bridge_event_to_node_payload(
             "h": h,
         })
 
+    start_time = float(event.get("start_time", 0.0))
+    end_time = float(event.get("end_time", 0.0))
+
     return {
         "mlEventId": f"{video_id}_{event.get('event_id') or 'event_' + str(event.get('track_id', 0))}",
         "videoId": video_id,
@@ -157,10 +182,14 @@ def adapt_bridge_event_to_node_payload(
         "objectDetected": event.get("object_class"),
         "objectConfidence": event.get("object_confidence"),
         "timestamps": [{
-            "start": float(event.get("start_time", 0.0)),
-            "end": float(event.get("end_time", 0.0)),
+            "start": start_time,
+            "end": end_time,
         }],
         "bboxOverlay": bbox_overlay,
+        "activities": list(activities) if activities is not None else [],
+        "confidenceScore": float(confidence_score) if confidence_score is not None else 0.0,
+        "personIds": list(person_ids) if person_ids is not None else [],
+        "duration": float(duration) if duration is not None else round(end_time - start_time, 2),
     }
 
 

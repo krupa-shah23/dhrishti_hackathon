@@ -21,10 +21,17 @@ class MLWorker:
     """
 
     def __init__(self):
+        # Same fix as status_updater.py's client: bounded connect/socket
+        # timeouts. BRPOP's own timeout=5 (in _poll_loop) only bounds the
+        # blocking read once connected -- the initial _connect() had no
+        # timeout of its own before this.
         self.redis_client = redis.Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
             decode_responses=True,
+            socket_connect_timeout=1.5,
+            socket_timeout=6,  # > BRPOP's timeout=5 so it doesn't cut the blocking read short
+            retry_on_timeout=False,
         )
         self.running = False
         self._thread = None

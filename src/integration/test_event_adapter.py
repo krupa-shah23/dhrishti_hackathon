@@ -157,8 +157,16 @@ def test_node_payload_reshape_exact_shape():
 
     assert set(payload.keys()) == {
         "mlEventId", "videoId", "seatId", "objectDetected", "objectConfidence",
-        "timestamps", "bboxOverlay",
+        "timestamps", "bboxOverlay", "activities", "confidenceScore",
+        "personIds", "duration",
     }
+    # optional passthrough params omitted here -> schema-default-equivalent
+    # values, except duration which is genuinely computable from the event
+    # itself (end_time - start_time) regardless of caller.
+    assert payload["activities"] == []
+    assert payload["confidenceScore"] == 0.0
+    assert payload["personIds"] == []
+    assert payload["duration"] == round(event["end_time"] - event["start_time"], 2)
     # video_id-prefixed: bare event['event_id'] ("event_1") collides across
     # different videos since P2P3Bridge track_ids reset per pipeline run.
     assert payload["mlEventId"] == f"video_abc123_{event['event_id']}"
